@@ -19,10 +19,11 @@ Gestor financeiro pessoal em formato web app, focado em cadastro rápido de movi
    - Investimentos
    - Retiradas de investimento
 3. **Web app** — FastAPI + React.
-4. **Gráficos** — área de visualização para acompanhar gastos, ganhos e investimentos ao longo do tempo.
-5. **Análise por LLM** *(fase 2)* — integração com alguma LLM para análises automáticas. Adiado porque só faz sentido depois de acumular alguns meses de dados.
-6. **Import/export CSV** — apenas para **transações**. Baixar todas as movimentações cadastradas e alimentar o sistema com CSVs padronizados.
-7. **Import/export JSON** — para **configurações**: tags e contas cadastradas (e outras configs futuras).
+4. **Gráficos** — área de visualização para acompanhar gastos, ganhos e investimentos ao longo do tempo. Catálogo completo (21 gráficos, óticas, endpoints e shapes) em `GRAFICOS.md`.
+5. **Orçamento** *(fase 1.5)* — limite mensal de gasto por tag (despesa). Base para os gráficos de orçado×realizado, progresso e alerta de estouro projetado.
+6. **Análise por LLM** *(fase 2)* — integração com alguma LLM para análises automáticas. Adiado porque só faz sentido depois de acumular alguns meses de dados.
+7. **Import/export CSV** — apenas para **transações**. Baixar todas as movimentações cadastradas e alimentar o sistema com CSVs padronizados.
+8. **Import/export JSON** — para **configurações**: tags e contas cadastradas (e outras configs futuras).
 
 ## Decisões já tomadas
 
@@ -37,6 +38,8 @@ Gestor financeiro pessoal em formato web app, focado em cadastro rápido de movi
 - **Modelagem**:
   - Tabela única `Transacao` (com campo `type`) em vez de models separados por tipo.
   - Relação `Transacao` → `Tag` é **FK simples** (uma tag por transação).
+  - `Orcamento` é limite mensal por tag de **despesa** (um registro por `tag_id` + `year` + `month`).
+- **Investimento nos gráficos**: nunca conta como saída no fluxo — é categoria/ótica própria (patrimônio). Detalhes em `GRAFICOS.md`.
 
 ## Modelagem de dados
 
@@ -98,6 +101,27 @@ Tabela única para todos os tipos de movimentação. Justificativa: ~90% dos cam
 | `type`       | enum `ContaType`    | não      | `banco`, `investimento`, `carteira`|
 | `color`      | `varchar(7)`        | não      | hex `#RRGGBB`                      |
 
+### `Orcamento`
+
+Limite mensal de gasto por tag de despesa. Base dos gráficos de orçamento (ver `GRAFICOS.md`, grupo G).
+
+| Campo         | Tipo                   | Nullable | Notas                                              |
+|---------------|------------------------|----------|----------------------------------------------------|
+| `id`          | `int` PK               | não      | autoincrement                                      |
+| `active`      | `bool`                 | não      | default `True` (soft delete)                       |
+| `created_at`  | `timestamptz`          | não      | default `now()`                                    |
+| `updated_at`  | `timestamptz`          | não      | default `now()`, atualiza no update                |
+| `tag_id`      | `int` FK → `Tag.id`    | não      | a tag referenciada deve ter `type = despesa`       |
+| `year`        | `int`                  | não      | ex: 2026                                           |
+| `month`       | `int`                  | não      | 1–12                                               |
+| `limit_value` | `Numeric(12, 2)`       | não      | limite do mês; sempre positivo                     |
+
+**Validações de aplicação:**
+
+- `tag_id` deve referenciar uma `Tag` com `type = despesa` e `active = True`.
+- Único `(tag_id, year, month)` entre orçamentos ativos.
+- `limit_value > 0`.
+
 ### Enums
 
 ```
@@ -110,6 +134,8 @@ ContaType      = { banco, investimento, carteira }
 ## Próximos passos
 
 1. Esqueleto do projeto: estrutura de pastas (backend FastAPI + frontend React) e `docker-compose.yml` com Postgres.
-2. Implementar models (SQLAlchemy) + migrations (Alembic).
+2. Implementar models (SQLAlchemy: `Transacao`, `Tag`, `Conta`, `Orcamento`) + migrations (Alembic).
 3. Definir schema do CSV de transações (colunas, encoding, separador, formato de data) e do JSON de configs.
 4. Endpoints CRUD (FastAPI) e telas básicas de cadastro (React).
+5. Orçamento (CRUD `/orcamentos`) — fase 1.5.
+6. Gráficos (`/graphs`) conforme `GRAFICOS.md`.

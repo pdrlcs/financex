@@ -20,14 +20,16 @@ backend/
 │   │   ├── transacoes.py
 │   │   ├── tags.py
 │   │   ├── contas.py
+│   │   ├── orcamentos.py
 │   │   └── graphs.py
 │   ├── schemas/            # Pydantic — input e output por recurso
 │   │   ├── __init__.py
 │   │   ├── transacao.py
 │   │   ├── tag.py
-│   │   └── conta.py
+│   │   ├── conta.py
+│   │   └── orcamento.py
 │   ├── app.py              # instância FastAPI, inclusão de routers, middleware
-│   ├── models.py           # models SQLAlchemy (todos num arquivo só — 3 models)
+│   ├── models.py           # models SQLAlchemy (todos num arquivo só — 4 models)
 │   ├── database.py         # engine, SessionLocal, Base
 │   ├── dependencies.py     # get_db e outros Depends reutilizáveis
 │   └── settings.py         # BaseSettings (pydantic_settings)
@@ -141,6 +143,11 @@ ContaType      → banco | investimento | carteira
 Relacionamentos:
 - `Transacao.account_id` → FK `conta.id`, `nullable=False`
 - `Transacao.tag_id`     → FK `tag.id`, `nullable=True`
+- `Orcamento.tag_id`     → FK `tag.id`, `nullable=False` (tag deve ter `type = despesa`)
+
+Model `Orcamento` (ver `PLANEJAMENTO.md` / `GRAFICOS.md` grupo G):
+- `tag_id` (FK), `year` (Integer), `month` (Integer 1–12), `limit_value` (`Numeric(12,2)`)
+- Unicidade `(tag_id, year, month)` entre ativos — validar na aplicação (filtra `active=True`).
 
 ---
 
@@ -224,6 +231,15 @@ Regra: `HTTPException` com status codes de `http.HTTPStatus` (`HTTPStatus.NOT_FO
 | GET    | `/export/csv`      | exporta transações filtradas como CSV                              |
 | POST   | `/import/csv`      | importa transações de arquivo CSV (`multipart/form-data`)          |
 
+### `/orcamentos`
+| Método | Rota      | Descrição                                           |
+|--------|-----------|-----------------------------------------------------|
+| GET    | `/`       | listar (query: `year`, `month`, `tag_id`, `active`) |
+| POST   | `/`       | criar (valida tag `type=despesa` + unicidade)       |
+| GET    | `/{id}`   | detalhe                                             |
+| PUT    | `/{id}`   | atualizar                                           |
+| DELETE | `/{id}`   | soft delete (`active=False`)                        |
+
 ### `/configs`
 | Método | Rota      | Descrição                                           |
 |--------|-----------|-----------------------------------------------------|
@@ -231,14 +247,33 @@ Regra: `HTTPException` com status codes de `http.HTTPStatus` (`HTTPStatus.NOT_FO
 | POST   | `/import` | importa tags + contas de JSON (merge, não substitui)|
 
 ### `/graphs`
-Todos aceitam query params: `date_from`, `date_to`, `type` (opcional).
+Catálogo completo (óticas, tipos Chart.js e shape do JSON) em `GRAFICOS.md`.
+Filtros comuns: `date_from`, `date_to`, `granularity` (`day|week|month|year`, default `month`),
+`type` (opcional), `exclude_tags` (CSV de ids — remove tags da agregação em todos os gráficos de tag).
 
-| Método | Rota         | Descrição                                            |
-|--------|--------------|------------------------------------------------------|
-| GET    | `/resumo`    | totais por tipo no período (cards de cabeçalho)      |
-| GET    | `/por-tag`   | soma agrupada por tag → Chart.js doughnut/bar        |
-| GET    | `/por-mes`   | evolução mensal → Chart.js line/bar                  |
-| GET    | `/por-conta` | distribuição por conta → Chart.js doughnut           |
+| Método | Rota                            | Descrição                                          |
+|--------|---------------------------------|----------------------------------------------------|
+| GET    | `/resumo`                       | KPIs do período (receitas, despesas, saldo, investido líquido, taxa poupança) |
+| GET    | `/por-tag`                      | gastos por categoria → doughnut (agrupa "Outros" <3%) |
+| GET    | `/por-tag-temporal`             | categorias ao longo dos meses → stacked bar        |
+| GET    | `/ranking-tags`                 | ranking de categorias → bar horizontal             |
+| GET    | `/variacao-tags`                | variação % vs período anterior → bar (±)           |
+| GET    | `/por-mes`                      | receitas × despesas + linha de saldo → bar+line    |
+| GET    | `/por-conta`                    | volume movimentado por conta → doughnut            |
+| GET    | `/por-metodo`                   | gasto por método de pagamento → doughnut           |
+| GET    | `/investimentos/aporte`         | aporte por período por tag → multi-line            |
+| GET    | `/investimentos/acumulado`      | patrimônio acumulado por tag → stacked area        |
+| GET    | `/heatmap`                      | gasto por dia (calendário) → matrix                |
+| GET    | `/por-dia-semana`               | gasto por dia da semana → bar                      |
+| GET    | `/burndown`                     | queima do mês atual × média histórica → line dupla |
+| GET    | `/por-dia-mes`                  | gasto médio por dia do mês → bar/line              |
+| GET    | `/previsao/run-rate`            | projeção de fim de mês → card+line                 |
+| GET    | `/previsao/media-movel`         | média móvel por categoria → multi-line             |
+| GET    | `/previsao/tendencia`           | tendência linear da despesa → bar+line             |
+| GET    | `/previsao/sazonalidade`        | ano atual × anterior (fase futura) → line dupla    |
+| GET    | `/orcamento/realizado`          | orçado × realizado → grouped bar                   |
+| GET    | `/orcamento/progresso`          | progresso por categoria → gauge/progress           |
+| GET    | `/orcamento/alerta-estouro`     | alerta de estouro projetado → lista                |
 
 ---
 
@@ -270,13 +305,14 @@ Personalização via query params (ex: `?date_from=2026-01-01&date_to=2026-03-31
 
 ```python
 from fastapi import FastAPI
-from app.routers import transacoes, tags, contas, graphs
+from app.routers import transacoes, tags, contas, orcamentos, graphs
 
 app = FastAPI(title="Gestor Financex")
 
 app.include_router(tags.router,       prefix="/tags")
 app.include_router(contas.router,     prefix="/contas")
 app.include_router(transacoes.router, prefix="/transacoes")
+app.include_router(orcamentos.router, prefix="/orcamentos")
 app.include_router(graphs.router,     prefix="/graphs")
 ```
 
@@ -353,8 +389,8 @@ alembic upgrade head
 2. `docker-compose.yml` + `Dockerfile` básico.
 3. `settings.py` → `database.py` → `models.py` → primeira migration.
 4. Schemas Pydantic (`schemas/`).
-5. Routers CRUD (na ordem: `tags` → `contas` → `transacoes`).
+5. Routers CRUD (na ordem: `tags` → `contas` → `transacoes` → `orcamentos`).
 6. Import/export CSV e JSON.
-7. `graphs/queries.py` + router `/graphs`.
+7. `graphs/queries.py` + router `/graphs` (ver `GRAFICOS.md`).
 8. Logs.
 9. Testes.
