@@ -342,7 +342,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5444:5432"   # host 5444 → container 5432 (5432 já ocupado por outro Postgres no host)
 
   backend:
     build: ./backend
@@ -394,3 +394,41 @@ alembic upgrade head
 7. `graphs/queries.py` + router `/graphs` (ver `GRAFICOS.md`).
 8. Logs.
 9. Testes.
+
+---
+
+## Progresso da implementação
+
+> Log de status do que já está feito. Atualizar conforme avança.
+
+### ✅ Feito — Scaffolding + infraestrutura
+
+Estrutura de pastas criada em `backend/` conforme planejado. Arquivos implementados:
+
+- **`requirements.txt`** — deps com versões pinadas (fastapi 0.115, sqlalchemy 2.0, alembic 1.14, psycopg2-binary, pydantic-settings, python-multipart, pytest, httpx).
+- **`Dockerfile`** — base `python:3.12-slim`, instala deps e copia o app.
+- **`docker-compose.yml`** (raiz) — serviços `postgres` (16-alpine) + `backend`.
+  - **Postgres exposto em `5444:5432`** no host — a porta 5432 já estava ocupada por outro Postgres na máquina. Dentro da rede Docker continua `postgres:5432` (testes e backend não mudam).
+  - Healthcheck no postgres + `depends_on: condition: service_healthy` no backend.
+- **`.env`** — `DATABASE_URL` (rede interna) + `LOG_LEVEL`.
+- **`app/settings.py`** — `BaseSettings` (pydantic-settings v2, `SettingsConfigDict`).
+- **`app/database.py`** — `engine`, `SessionLocal`, `Base` (DeclarativeBase).
+- **`app/dependencies.py`** — `get_db()`.
+- **`app/models.py`** — 4 models (`Tag`, `Conta`, `Transacao`, `Orcamento`) + `TimestampMixin` (id/active/created_at/updated_at) + 4 enums nativos (`TransacaoType`, `TagType`, `PaymentMethod`, `ContaType`). Tabelas singulares (`tag`, `conta`, `transacao`, `orcamento`). FKs e relationships configurados. Money em `Numeric(12,2)`, cor `String(7)`.
+- **`app/app.py`** — instância FastAPI + CORS (`localhost:3000`) + setup de logging + rota `/health`. Routers ainda **não** incluídos (entram conforme forem implementados via TDD).
+- **`app/logging_config.py`** — `setup_logging()` com `RotatingFileHandler` em `app/logs/app.log` + console; nível vindo de `settings.log_level`.
+- **`app/schemas/`, `app/routers/`, `app/graphs/`** — pacotes criados (vazios, a preencher).
+- **Alembic** — `alembic.ini` + `migrates/env.py` (aponta `target_metadata = Base.metadata`, usa `DATABASE_URL`) + `script.py.mako` + `migrates/versions/`. Migration inicial ainda **não** gerada.
+- **Testes** — `pytest.ini` + `tests/conftest.py` (fixtures `create_tables` por sessão, `db` com rollback por teste, `client` com override de `get_db`), conforme `TESTES.md`.
+
+### ⏳ Bloqueio atual
+
+- `docker compose up` falhava por conflito na porta 5432 do host → resolvido remapeando para **5444**. Próximo passo: subir os containers, criar o banco `financex_test` e gerar a migration inicial.
+
+### ⬜ Pendente
+
+- Subir containers (`docker compose up -d`) e criar DB `financex_test`.
+- Gerar migration inicial do Alembic (`alembic revision --autogenerate`).
+- Routers via TDD na ordem: `tags` → `contas` → `transacoes` (+ CSV) → `orcamentos` → `/configs` (JSON) → `/graphs`.
+- Incluir cada router no `app.py` conforme implementado.
+- Verificação final: suíte `pytest` completa (182 casos de `TESTES.md`).
