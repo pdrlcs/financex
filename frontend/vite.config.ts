@@ -16,6 +16,19 @@ export default defineConfig(() => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // Separa as libs pesadas do bundle principal: o Chart.js (+ matrix +
+          // wrapper) só pesa no Dashboard, e o vendor React é estável e
+          // cacheável entre deploys. Tira o app do aviso de 500 kB por chunk.
+          manualChunks: {
+            charts: ["chart.js", "chartjs-chart-matrix", "react-chartjs-2"],
+            "react-vendor": ["react", "react-dom", "react-router-dom"],
+          },
+        },
+      },
+    },
     server: {
       port: 5173,
       proxy: {
