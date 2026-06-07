@@ -13,7 +13,7 @@ export function ThemeToggle() {
       onClick={toggleTheme}
       aria-label={dark ? "Mudar para tema claro" : "Mudar para tema escuro"}
       title={dark ? "Tema claro" : "Tema escuro"}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
       {dark ? <Sun size={18} /> : <Moon size={18} />}
     </button>

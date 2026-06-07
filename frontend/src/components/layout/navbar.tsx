@@ -20,12 +20,12 @@ export function Navbar({ onOpenMenu }: NavbarProps) {
   const { openNew } = useTransacaoDialog();
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b border-border bg-card px-5 transition-colors">
+    <header className="sticky top-0 z-50 flex h-16 items-center gap-2 border-b border-border bg-card px-3 transition-colors sm:gap-4 sm:px-5">
       <button
         type="button"
         onClick={onOpenMenu}
         aria-label="Abrir menu"
-        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
       >
         <Menu size={20} />
       </button>
@@ -39,7 +39,8 @@ export function Navbar({ onOpenMenu }: NavbarProps) {
       <button
         type="button"
         onClick={openNew}
-        className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90"
+        aria-label="Nova transação"
+        className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-primary px-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90 sm:px-4"
       >
         <Plus size={17} />
         <span className="hidden sm:inline">Nova transação</span>

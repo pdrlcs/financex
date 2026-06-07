@@ -25,7 +25,7 @@ import type {
 } from "@/types/api";
 
 const ALL = "__all__";
-const CSV_HEADER = "type,value,date,description,account_id,tag_id,payment_method";
+const CSV_HEADER = "id,type,value,date,description,account_name,tag_name,payment_method";
 
 /** Dispara o download de um Blob no navegador. */
 function downloadBlob(blob: Blob, filename: string) {
@@ -233,10 +233,10 @@ export function ImportExport() {
         {/* Import */}
         <div className="space-y-2.5">
           <Label>Importar</Label>
-          <p className="text-[13px] text-muted-foreground">
-            O arquivo deve ter o cabeçalho:{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 text-[12px]">{CSV_HEADER}</code>
-          </p>
+          <p className="text-[13px] text-muted-foreground">O arquivo deve ter o cabeçalho:</p>
+          <code className="block overflow-x-auto whitespace-nowrap rounded bg-muted px-2 py-1.5 text-[12px]">
+            {CSV_HEADER}
+          </code>
           <input
             ref={csvInputRef}
             type="file"

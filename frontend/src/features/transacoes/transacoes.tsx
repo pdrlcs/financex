@@ -152,7 +152,7 @@ export function Transacoes() {
 
       {/* Abas por tipo */}
       <Tabs value={tab} onValueChange={resetPage(setTab)}>
-        <TabsList className="flex-wrap">
+        <TabsList className="h-auto flex-wrap">
           {TYPE_TABS.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
               {t.label}
@@ -234,7 +234,76 @@ export function Transacoes() {
             </button>
           </div>
         ) : (
-          <div className={cn("overflow-x-auto", isFetching && "opacity-60")}>
+          <div className={cn(isFetching && "opacity-60")}>
+            {/* Mobile: a tabela vira lista de cards (PORT_FRONTEND.md §4.8) */}
+            <ul className="divide-y divide-border sm:hidden">
+              {pageItems.map((tx) => {
+                const info = TRANSACAO_TIPO_INFO[tx.type];
+                const tag = tx.tag_id != null ? tagMap.get(tx.tag_id) : undefined;
+                const conta = contaMap.get(tx.account_id);
+                return (
+                  <li key={tx.id} className="relative flex items-start gap-2 px-4 py-3">
+                    <span
+                      className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r"
+                      style={{ background: tag?.color ?? "var(--c-neutro)" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="truncate text-sm font-medium">
+                          {tx.description || tag?.name || "—"}
+                        </span>
+                        <span
+                          className="num shrink-0 whitespace-nowrap text-sm font-bold"
+                          style={{ color: `var(${info.colorVar})` }}
+                        >
+                          {TX_SIGN[tx.type]}
+                          {fmt.brl(tx.value).replace("-", "")}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        <span className="num">
+                          {format(parseISO(tx.date), "dd/MM/yyyy")}
+                        </span>
+                        {tag && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground">
+                            <span
+                              className="h-2 w-2 rounded-full"
+                              style={{ background: tag.color }}
+                            />
+                            {tag.name}
+                          </span>
+                        )}
+                        {conta && <span>· {conta.name}</span>}
+                        {tx.payment_method && (
+                          <span>· {PAYMENT_METHOD_LABEL[tx.payment_method]}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        aria-label="Editar transação"
+                        onClick={() => openEdit(tx)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Excluir transação"
+                        onClick={() => setDeleteTarget(tx)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-despesa/10 hover:text-despesa"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* Tablet/desktop: tabela (scroll horizontal de segurança) */}
+            <div className="hidden overflow-x-auto sm:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
@@ -332,6 +401,7 @@ export function Transacoes() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 

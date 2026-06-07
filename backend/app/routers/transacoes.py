@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.dependencies import get_db
 from app.models import Conta, Tag, TagType, Transacao, TransacaoType, PaymentMethod
@@ -22,8 +22,8 @@ TAG_TYPE_COMPAT = {
     TransacaoType.retirada_investimento: TagType.investimento,
 }
 
-CSV_FIELDNAMES = ["id", "type", "value", "date", "description", "account_id", "tag_id", "payment_method"]
-IMPORT_FIELDNAMES = ["type", "value", "date", "description", "account_id", "tag_id", "payment_method"]
+CSV_FIELDNAMES = ["id", "type", "value", "date", "description", "account_name", "tag_name", "payment_method"]
+IMPORT_FIELDNAMES = ["id", "type", "value", "date", "description", "account_name", "tag_name", "payment_method"]
 
 
 def _validate_account(db: Session, account_id: int) -> Conta:
@@ -88,7 +88,12 @@ def export_csv(
     db: Session = Depends(get_db),
 ):
     query = _build_query(db, type, tag_id, account_id, date_from, date_to, active)
-    transacoes = query.all()
+    # Eager-load account/tag so the streaming generator (which runs after the DB
+    # session is closed) reads already-materialized names instead of lazy-loading
+    # on a detached instance.
+    transacoes = query.options(
+        joinedload(Transacao.account), joinedload(Transacao.tag)
+    ).all()
 
     def generate():
         buf = io.StringIO()
@@ -104,8 +109,8 @@ def export_csv(
                 str(t.value),
                 str(t.date),
                 t.description or "",
-                t.account_id,
-                t.tag_id if t.tag_id is not None else "",
+                t.account.name,
+                t.tag.name if t.tag is not None else "",
                 t.payment_method.value if t.payment_method is not None else "",
             ])
             yield buf.getvalue()
@@ -154,8 +159,26 @@ def import_csv(
     importadas = 0
     erros = 0
 
-    for row in reader:
+    # Order rows by the `id` column ascending so transactions enter the system in
+    # the same order they originally had. Rows with an invalid/missing id are kept
+    # (and will be counted as errors below) but pushed to the end.
+    def _row_sort_key(item):
         try:
+            return (0, int((item.get("id") or "").strip()))
+        except ValueError:
+            return (1, 0)
+
+    rows = sorted(reader, key=_row_sort_key)
+
+    for row in rows:
+        try:
+            # Parse id (required for ordering)
+            try:
+                int((row.get("id") or "").strip())
+            except ValueError:
+                erros += 1
+                continue
+
             # Parse and validate type
             try:
                 t_type = TransacaoType(row["type"])
@@ -182,40 +205,35 @@ def import_csv(
                 erros += 1
                 continue
 
-            # Parse account_id
-            try:
-                account_id = int(row["account_id"])
-            except (ValueError, KeyError):
+            # Resolve account by name
+            account_name = (row.get("account_name") or "").strip()
+            if not account_name:
                 erros += 1
                 continue
-
-            # Validate account
-            conta = db.query(Conta).filter(Conta.id == account_id, Conta.active.is_(True)).first()
+            conta = db.query(Conta).filter(
+                Conta.name == account_name, Conta.active.is_(True)
+            ).first()
             if conta is None:
                 erros += 1
                 continue
+            account_id = conta.id
 
-            # Parse optional tag_id
+            # Resolve optional tag by name + expected type (derived from transacao type).
+            # A name that matches no active tag of the expected type is an error — this
+            # covers both nonexistent and type-incompatible tags.
             tag_id = None
-            tag_id_str = row.get("tag_id", "").strip()
-            if tag_id_str:
-                try:
-                    tag_id = int(tag_id_str)
-                except ValueError:
-                    erros += 1
-                    continue
-
-                # Validate tag
-                tag = db.query(Tag).filter(Tag.id == tag_id, Tag.active.is_(True)).first()
+            tag_name = (row.get("tag_name") or "").strip()
+            if tag_name:
+                expected_tag_type = TAG_TYPE_COMPAT[t_type]
+                tag = db.query(Tag).filter(
+                    Tag.name == tag_name,
+                    Tag.type == expected_tag_type,
+                    Tag.active.is_(True),
+                ).first()
                 if tag is None:
                     erros += 1
                     continue
-
-                # Validate tag compatibility
-                expected_tag_type = TAG_TYPE_COMPAT[t_type]
-                if tag.type != expected_tag_type:
-                    erros += 1
-                    continue
+                tag_id = tag.id
 
             # Parse optional payment_method
             payment_method = None

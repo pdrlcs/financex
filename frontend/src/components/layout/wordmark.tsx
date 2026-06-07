@@ -4,7 +4,7 @@
  */
 export function Wordmark() {
   return (
-    <span className="select-none text-xl font-bold tracking-tight text-foreground">
+    <span className="hidden select-none text-xl font-bold tracking-tight text-foreground sm:inline">
       Finance<span className="text-primary">x</span>
     </span>
   );

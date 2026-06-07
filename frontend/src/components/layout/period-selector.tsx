@@ -20,16 +20,16 @@ export function PeriodSelector() {
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="inline-flex h-10 min-w-[168px] items-center justify-between gap-2 rounded-md border border-border bg-card px-3 text-sm text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-10 min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 text-sm text-foreground transition-colors hover:bg-muted sm:min-w-[168px] sm:px-3"
         >
-          <span className="flex items-center gap-2">
-            <Calendar size={16} className="text-muted-foreground" />
-            <span className="font-semibold">{current.label}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <Calendar size={16} className="shrink-0 text-muted-foreground" />
+            <span className="truncate font-semibold">{current.label}</span>
           </span>
           <ChevronDown
             size={15}
             className={cn(
-              "text-muted-foreground transition-transform",
+              "shrink-0 text-muted-foreground transition-transform",
               open && "rotate-180",
             )}
           />

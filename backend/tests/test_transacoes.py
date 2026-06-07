@@ -719,7 +719,7 @@ def test_116_export_csv_correct_columns(client):
     content = r.text
     reader = csv.reader(io.StringIO(content))
     header = next(reader)
-    expected = ["id", "type", "value", "date", "description", "account_id", "tag_id", "payment_method"]
+    expected = ["id", "type", "value", "date", "description", "account_name", "tag_name", "payment_method"]
     assert header == expected
 
 
@@ -728,7 +728,7 @@ def test_116_export_csv_correct_columns(client):
 def _make_csv_bytes(rows: list[dict], fieldnames=None) -> bytes:
     """Build a CSV file as bytes from a list of dicts."""
     if fieldnames is None:
-        fieldnames = ["type", "value", "date", "description", "account_id", "tag_id", "payment_method"]
+        fieldnames = ["id", "type", "value", "date", "description", "account_name", "tag_name", "payment_method"]
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fieldnames)
     writer.writeheader()
@@ -741,10 +741,10 @@ def test_117_import_csv_valid(client):
     """117 - POST /transacoes/import/csv: valid CSV → 201 + {"importadas": N, "erros": 0}"""
     conta = make_conta(client, name="C117")
     data = _make_csv_bytes([
-        {"type": "despesa", "value": "100.00", "date": "2026-05-10",
-         "description": "test", "account_id": conta["id"], "tag_id": "", "payment_method": "pix"},
-        {"type": "receita", "value": "200.00", "date": "2026-05-11",
-         "description": "", "account_id": conta["id"], "tag_id": "", "payment_method": ""},
+        {"id": "1", "type": "despesa", "value": "100.00", "date": "2026-05-10",
+         "description": "test", "account_name": conta["name"], "tag_name": "", "payment_method": "pix"},
+        {"id": "2", "type": "receita", "value": "200.00", "date": "2026-05-11",
+         "description": "", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
     ])
     r = client.post(
         "/transacoes/import/csv",
@@ -770,10 +770,10 @@ def test_119_import_csv_invalid_type_line_skipped(client):
     """119 - POST /transacoes/import/csv: line with invalid type → skipped, counted in erros"""
     conta = make_conta(client, name="C119")
     data = _make_csv_bytes([
-        {"type": "despesa", "value": "100.00", "date": "2026-05-10",
-         "description": "", "account_id": conta["id"], "tag_id": "", "payment_method": ""},
-        {"type": "invalido", "value": "50.00", "date": "2026-05-10",
-         "description": "", "account_id": conta["id"], "tag_id": "", "payment_method": ""},
+        {"id": "1", "type": "despesa", "value": "100.00", "date": "2026-05-10",
+         "description": "", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
+        {"id": "2", "type": "invalido", "value": "50.00", "date": "2026-05-10",
+         "description": "", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
     ])
     r = client.post(
         "/transacoes/import/csv",
@@ -789,10 +789,10 @@ def test_120_import_csv_nonexistent_account_skipped(client):
     """120 - POST /transacoes/import/csv: line with nonexistent account → skipped, counted"""
     conta = make_conta(client, name="C120")
     data = _make_csv_bytes([
-        {"type": "despesa", "value": "100.00", "date": "2026-05-10",
-         "description": "", "account_id": conta["id"], "tag_id": "", "payment_method": ""},
-        {"type": "despesa", "value": "50.00", "date": "2026-05-10",
-         "description": "", "account_id": "99999", "tag_id": "", "payment_method": ""},
+        {"id": "1", "type": "despesa", "value": "100.00", "date": "2026-05-10",
+         "description": "", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
+        {"id": "2", "type": "despesa", "value": "50.00", "date": "2026-05-10",
+         "description": "", "account_name": "Conta Inexistente", "tag_name": "", "payment_method": ""},
     ])
     r = client.post(
         "/transacoes/import/csv",
@@ -809,11 +809,11 @@ def test_121_import_csv_incompatible_tag_skipped(client):
     conta = make_conta(client, name="C121")
     tag = make_tag(client, name="T121", type="receita")
     data = _make_csv_bytes([
-        {"type": "despesa", "value": "100.00", "date": "2026-05-10",
-         "description": "", "account_id": conta["id"], "tag_id": "", "payment_method": ""},
-        # despesa with receita tag → incompatible
-        {"type": "despesa", "value": "50.00", "date": "2026-05-10",
-         "description": "", "account_id": conta["id"], "tag_id": tag["id"], "payment_method": ""},
+        {"id": "1", "type": "despesa", "value": "100.00", "date": "2026-05-10",
+         "description": "", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
+        # despesa with receita tag → incompatible (no active despesa tag named "T121")
+        {"id": "2", "type": "despesa", "value": "50.00", "date": "2026-05-10",
+         "description": "", "account_name": conta["name"], "tag_name": tag["name"], "payment_method": ""},
     ])
     r = client.post(
         "/transacoes/import/csv",
@@ -827,7 +827,7 @@ def test_121_import_csv_incompatible_tag_skipped(client):
 
 def test_122_import_csv_only_header(client):
     """122 - POST /transacoes/import/csv: CSV with only header → 201 + {"importadas": 0, "erros": 0}"""
-    data = b"type,value,date,description,account_id,tag_id,payment_method\n"
+    data = b"id,type,value,date,description,account_name,tag_name,payment_method\n"
     r = client.post(
         "/transacoes/import/csv",
         files={"file": ("import.csv", data, "text/csv")},
@@ -846,3 +846,30 @@ def test_123_import_non_csv_file(client):
         files={"file": ("import.txt", data, "text/plain")},
     )
     assert r.status_code == 422
+
+
+def test_124_import_csv_orders_by_id(client):
+    """124 - POST /transacoes/import/csv: rows are inserted ordered by id ascending"""
+    conta = make_conta(client, name="C124")
+    # Rows given out of order; import must insert smallest id first.
+    data = _make_csv_bytes([
+        {"id": "3", "type": "despesa", "value": "30.00", "date": "2026-05-10",
+         "description": "third", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
+        {"id": "1", "type": "despesa", "value": "10.00", "date": "2026-05-10",
+         "description": "first", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
+        {"id": "2", "type": "despesa", "value": "20.00", "date": "2026-05-10",
+         "description": "second", "account_name": conta["name"], "tag_name": "", "payment_method": ""},
+    ])
+    r = client.post(
+        "/transacoes/import/csv",
+        files={"file": ("import.csv", data, "text/csv")},
+    )
+    assert r.status_code == 201
+    assert r.json() == {"importadas": 3, "erros": 0}
+
+    # New transaction ids are auto-generated ascending, so listing by id reflects
+    # insertion order. Verify it matches the original id ordering (first, second, third).
+    listed = client.get("/transacoes").json()
+    listed.sort(key=lambda t: t["id"])
+    descriptions = [t["description"] for t in listed]
+    assert descriptions == ["first", "second", "third"]
