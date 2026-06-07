@@ -1,0 +1,19 @@
+# Override para desenvolvimento local do frontend (Vite + HMR).
+#
+# A prioridade do projeto é rodar tudo em Docker (docker-compose.yml), onde só
+# o frontend publica porta. Mas para iterar no front com HMR roda-se o Vite na
+# máquina (`cd frontend && npm run dev`), e aí o backend precisa estar acessível
+# em localhost:8000 para o proxy do Vite. Este override publica essa porta e
+# desliga o container do frontend (servido pelo Vite local).
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up postgres backend
+#   cd frontend && npm run dev
+services:
+  backend:
+    ports:
+      - "8000:8000"
+
+  frontend:
+    profiles:
+      - donotstart

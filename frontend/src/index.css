@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Financex — Design tokens (PLANEJAMENTO_FRONT.md §3)
+   CSS variables, trocadas por tema. :root = light, .dark = dark.
+   São a fonte única de verdade; o tailwind.config.ts mapeia os
+   nomes do shadcn (background, card, primary…) para estas vars.
+   ============================================================ */
+
+:root {
+  /* Acento / marca */
+  --accent: #3066be;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(48, 102, 190, 0.1);
+
+  /* Neutros — LIGHT (clean, cinza Trello-ish) */
+  --bg-app: #f4f5f7;
+  --bg-surface: #ffffff;
+  --bg-muted: #f1f2f4;
+  --border: #e4e6ea;
+  --text: #172b4d;
+  --text-muted: #5e6c84;
+
+  /* Semânticas (dados financeiros) — light */
+  --c-receita: #22c55e;
+  --c-despesa: #ef4444;
+  --c-investimento: #8b5cf6;
+  --c-saldo: #3b82f6;
+  --c-neutro: #9ca3af;
+
+  /* Semânticas — fundos suaves (tonalizados) p/ chips e KPI accents */
+  --c-receita-soft: rgba(34, 197, 94, 0.12);
+  --c-despesa-soft: rgba(239, 68, 68, 0.12);
+  --c-investimento-soft: rgba(139, 92, 246, 0.12);
+  --c-saldo-soft: rgba(59, 130, 246, 0.12);
+
+  /* Forma e elevação */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(9, 30, 66, 0.08);
+  --shadow-md: 0 4px 12px rgba(9, 30, 66, 0.1);
+
+  /* Densidade */
+  --card-pad: 22px;
+  --gutter: 20px;
+
+  /* "Moldura" do gráfico — usada pelo Chart.js (theme-aware) */
+  --chart-grid: rgba(23, 43, 77, 0.07);
+  --chart-tick: #5e6c84;
+  --chart-elem-border: #e4e6ea;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-text: #172b4d;
+
+  color-scheme: light;
+}
+
+.dark {
+  /* Acento clareado p/ ler sobre preto */
+  --accent: #5b8de8;
+  --accent-contrast: #0a0b0d;
+  --accent-soft: rgba(91, 141, 232, 0.14);
+
+  /* Neutros — DARK (bem dark: quase preto + superfícies escuras) */
+  --bg-app: #0a0b0d;
+  --bg-surface: #15171c;
+  --bg-muted: #1e2127;
+  --border: #2a2e37;
+  --text: #e6e8eb;
+  --text-muted: #9aa0aa;
+
+  /* Semânticas — variante clareada p/ contraste no preto */
+  --c-receita: #4ade80;
+  --c-despesa: #f87171;
+  --c-investimento: #a78bfa;
+  --c-saldo: #60a5fa;
+  --c-neutro: #6b7280;
+
+  --c-receita-soft: rgba(74, 222, 128, 0.14);
+  --c-despesa-soft: rgba(248, 113, 113, 0.14);
+  --c-investimento-soft: rgba(167, 139, 250, 0.14);
+  --c-saldo-soft: rgba(96, 165, 250, 0.14);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.5);
+
+  --chart-grid: rgba(230, 232, 235, 0.07);
+  --chart-tick: #9aa0aa;
+  --chart-elem-border: #2a2e37;
+  --chart-tooltip-bg: #1e2127;
+  --chart-tooltip-text: #e6e8eb;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+  }
+
+  #root {
+    height: 100%;
+  }
+
+  /* Foco acessível */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Scrollbar discreta */
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+    border: 2px solid var(--bg-app);
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  /* Números sempre tabulares onde marcamos .num */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@layer components {
+  /* Board Card — a unidade visual de tudo (base do Card shadcn) */
+  .board-card {
+    @apply rounded-lg border border-border bg-card shadow-fx-sm;
+    padding: var(--card-pad);
+    transition:
+      box-shadow 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.18s ease,
+      background-color 0.25s ease;
+  }
+  .board-card.is-hoverable:hover {
+    @apply shadow-fx-md;
+  }
+
+  /* Grades do Dashboard (GRAFICOS.md → Altura e responsividade) */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--gutter);
+  }
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--gutter);
+  }
+
+  /* Tablet: cards de meia largura ocupam a linha toda */
+  @media (max-width: 1180px) {
+    .kpi-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .charts-grid > [data-span="6"] {
+      grid-column: span 12 !important;
+    }
+  }
+  @media (max-width: 900px) {
+    .kpi-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  /* Mobile: tudo empilha em 1 coluna */
+  @media (max-width: 640px) {
+    .kpi-grid {
+      grid-template-columns: 1fr;
+    }
+    .charts-grid {
+      grid-template-columns: 1fr;
+    }
+    .charts-grid > * {
+      grid-column: 1 / -1 !important;
+    }
+  }
+}

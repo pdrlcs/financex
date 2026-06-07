@@ -17,8 +17,10 @@ services:
 
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    # Sem porta publicada no host: o backend só é alcançado pela rede do
+    # compose, via o reverse proxy do nginx do frontend (decisão #1).
+    expose:
+      - "8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,6 +29,15 @@ services:
     volumes:
       - ./backend:/app
     command: uvicorn app.app:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ./frontend
+    # Única porta publicada no host. O nginx serve o SPA e faz proxy de
+    # /api -> backend:8000 (ver frontend/nginx.conf).
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:
