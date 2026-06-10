@@ -47,6 +47,10 @@ class ContaType(str, enum.Enum):
     carteira = "carteira"
 
 
+class Indexador(str, enum.Enum):
+    cdi = "cdi"
+
+
 class TimestampMixin:
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -79,6 +83,12 @@ class Conta(TimestampMixin, Base):
         Enum(ContaType, name="conta_type"), nullable=False
     )
     color: Mapped[str] = mapped_column(String(7), nullable=False)
+    indexador: Mapped[Indexador | None] = mapped_column(
+        Enum(Indexador, name="indexador"), nullable=True
+    )
+    indexador_percent: Mapped[Decimal | None] = mapped_column(
+        Numeric(6, 2), nullable=True
+    )
 
 
 class Transacao(TimestampMixin, Base):
