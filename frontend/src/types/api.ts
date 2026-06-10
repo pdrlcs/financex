@@ -15,6 +15,8 @@ export const TRANSACAO_TYPES = [
   "receita",
   "investimento",
   "retirada_investimento",
+  "compra_cripto",
+  "venda_cripto",
 ] as const;
 export type TransacaoType = (typeof TRANSACAO_TYPES)[number];
 
@@ -78,6 +80,7 @@ export interface TransacaoOut extends BaseEntity {
   account_id: number;
   tag_id: number | null;
   payment_method: PaymentMethod | null;
+  quantity?: string | null;
 }
 
 export interface TransacaoCreate {
@@ -88,6 +91,7 @@ export interface TransacaoCreate {
   account_id: number;
   tag_id?: number | null;
   payment_method?: PaymentMethod | null;
+  quantity?: string | null;
 }
 
 export type TransacaoUpdate = Partial<TransacaoCreate>;
@@ -141,6 +145,28 @@ export interface ConfigsExport {
 export interface ConfigImportResult {
   tags: { criadas: number; ignoradas: number };
   contas: { criadas: number; ignoradas: number };
+}
+
+// ─── Mercado / Investimentos (BTC) ────────────────────────────────────────────
+
+export interface MercadoBtc {
+  available: boolean;
+  price?: number;
+  change_pct?: number;
+  updated_at?: string | null;
+  source: string;
+}
+
+export interface InvestimentoBtcResumo {
+  available: boolean;
+  quantidade_btc: number;
+  custo_medio: number | null;
+  investido_liquido: number;
+  preco_atual: number | null;
+  valor_atual: number | null;
+  lucro_prejuizo: number | null;
+  lucro_pct: number | null;
+  updated_at?: string | null;
 }
 
 export interface HealthResponse {

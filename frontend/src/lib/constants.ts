@@ -43,6 +43,16 @@ export const TRANSACAO_TIPO_INFO: Record<TransacaoType, TipoInfo> = {
     colorVar: "--c-investimento",
     textClass: "text-investimento",
   },
+  compra_cripto: {
+    label: "Compra cripto",
+    colorVar: "--c-investimento",
+    textClass: "text-investimento",
+  },
+  venda_cripto: {
+    label: "Venda cripto",
+    colorVar: "--c-investimento",
+    textClass: "text-investimento",
+  },
 };
 
 export const TAG_TIPO_INFO: Record<TagType, TipoInfo> = {
@@ -61,6 +71,8 @@ export const TRANSACAO_TAG_TYPE: Record<TransacaoType, TagType> = {
   receita: "receita",
   investimento: "investimento",
   retirada_investimento: "investimento",
+  compra_cripto: "investimento",
+  venda_cripto: "investimento",
 };
 
 export const CONTA_TIPO_LABEL: Record<ContaType, string> = {

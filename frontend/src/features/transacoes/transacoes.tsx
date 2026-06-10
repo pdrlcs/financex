@@ -47,6 +47,8 @@ const TX_SIGN: Record<TransacaoType, "+" | "−"> = {
   despesa: "−",
   investimento: "−",
   retirada_investimento: "+",
+  compra_cripto: "−",
+  venda_cripto: "+",
 };
 
 export function Transacoes() {

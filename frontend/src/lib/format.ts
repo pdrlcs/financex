@@ -39,4 +39,11 @@ export const fmt = {
   /** Sinal explícito (+/−) para deltas percentuais. */
   signedPct: (n: number, dec = 1): string =>
     (n >= 0 ? "+" : "−") + fmt.pct(Math.abs(n), dec),
+
+  /** 0,00310000 BTC */
+  btc: (v: number | string): string =>
+    `${new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: 8,
+      maximumFractionDigits: 8,
+    }).format(toNumber(v))} BTC`,
 };
