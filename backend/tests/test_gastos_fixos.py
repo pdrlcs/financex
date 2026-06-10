@@ -70,3 +70,71 @@ def test_update_and_delete(client):
     r = client.delete(f"/gastos-fixos/{gf['id']}")
     assert r.status_code == 204
     assert client.get(f"/gastos-fixos/{gf['id']}").status_code == 404
+
+
+# ─── Status mensal + marcar pago + desmarcar ───────────────────────────────────
+
+def _pagar(client, gid, year, month, value="1500.00", account_id=None, method="pix"):
+    body = {"value": value, "date": f"{year}-{month:02d}-10", "payment_method": method}
+    if account_id is not None:
+        body["account_id"] = account_id
+    return client.post(f"/gastos-fixos/{gid}/marcar-pago?year={year}&month={month}", json=body)
+
+
+def test_status_pendente_depois_pago(client):
+    tag = make_tag_despesa(client)
+    conta = make_conta(client)
+    gf = make_gasto_fixo(client, tag["id"], start_year=2026, start_month=6).json()
+
+    r = client.get("/gastos-fixos/status?year=2026&month=6")
+    assert r.status_code == 200
+    item = next(i for i in r.json() if i["gasto_fixo"]["id"] == gf["id"])
+    assert item["pago"] is False
+    assert item["transacao"] is None
+
+    pr = _pagar(client, gf["id"], 2026, 6, account_id=conta["id"])
+    assert pr.status_code == 201
+    tx = pr.json()
+    assert tx["type"] == "despesa"
+    assert tx["tag_id"] == tag["id"]
+    assert tx["gasto_fixo_id"] == gf["id"]
+
+    r = client.get("/gastos-fixos/status?year=2026&month=6")
+    item = next(i for i in r.json() if i["gasto_fixo"]["id"] == gf["id"])
+    assert item["pago"] is True
+    assert item["transacao"]["id"] == tx["id"]
+
+
+def test_status_respeita_mes_de_inicio(client):
+    tag = make_tag_despesa(client)
+    make_gasto_fixo(client, tag["id"], start_year=2026, start_month=6)
+    # Mês anterior ao início → não aparece
+    r = client.get("/gastos-fixos/status?year=2026&month=5")
+    assert all(i["gasto_fixo"]["name"] != "Aluguel" for i in r.json())
+
+
+def test_marcar_pago_duplicado_falha(client):
+    tag = make_tag_despesa(client)
+    conta = make_conta(client)
+    gf = make_gasto_fixo(client, tag["id"]).json()
+    assert _pagar(client, gf["id"], 2026, 6, account_id=conta["id"]).status_code == 201
+    assert _pagar(client, gf["id"], 2026, 6, account_id=conta["id"]).status_code == 422
+
+
+def test_desmarcar_pagamento(client):
+    tag = make_tag_despesa(client)
+    conta = make_conta(client)
+    gf = make_gasto_fixo(client, tag["id"]).json()
+    tx = _pagar(client, gf["id"], 2026, 6, account_id=conta["id"]).json()
+
+    r = client.delete(f"/gastos-fixos/{gf['id']}/pagamento?year=2026&month=6")
+    assert r.status_code == 204
+
+    item = next(
+        i for i in client.get("/gastos-fixos/status?year=2026&month=6").json()
+        if i["gasto_fixo"]["id"] == gf["id"]
+    )
+    assert item["pago"] is False
+    # transação ficou inativa, não apagada
+    assert client.get(f"/transacoes/{tx['id']}").status_code == 404
+    assert client.get("/transacoes/?active=false").status_code == 200
