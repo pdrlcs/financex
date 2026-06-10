@@ -20,6 +20,8 @@ TAG_TYPE_COMPAT = {
     TransacaoType.receita: TagType.receita,
     TransacaoType.investimento: TagType.investimento,
     TransacaoType.retirada_investimento: TagType.investimento,
+    TransacaoType.compra_cripto: TagType.investimento,
+    TransacaoType.venda_cripto: TagType.investimento,
 }
 
 CSV_FIELDNAMES = ["id", "type", "value", "date", "description", "account_name", "tag_name", "payment_method"]
@@ -301,6 +303,7 @@ def create_transacao(payload: TransacaoCreate, db: Session = Depends(get_db)):
         account_id=payload.account_id,
         tag_id=payload.tag_id,
         payment_method=payload.payment_method,
+        quantity=payload.quantity,
     )
     db.add(transacao)
     db.commit()
@@ -367,6 +370,8 @@ def update_transacao(transacao_id: int, payload: TransacaoUpdate, db: Session = 
         transacao.tag_id = payload_dict["tag_id"]
     if "payment_method" in payload_dict:
         transacao.payment_method = payload_dict["payment_method"]
+    if "quantity" in payload_dict:
+        transacao.quantity = payload_dict["quantity"]
 
     db.commit()
     db.refresh(transacao)

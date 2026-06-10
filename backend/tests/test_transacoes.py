@@ -873,3 +873,47 @@ def test_124_import_csv_orders_by_id(client):
     listed.sort(key=lambda t: t["id"])
     descriptions = [t["description"] for t in listed]
     assert descriptions == ["first", "second", "third"]
+
+
+# ─── Cripto: quantity validation ───────────────────────────────────────────────
+
+def _conta_cripto(client):
+    r = client.post("/contas", json={"name": "Cripto", "type": "investimento", "color": "#F7931A"})
+    assert r.status_code == 201
+    return r.json()
+
+
+def _tag_inv(client):
+    r = client.post("/tags", json={"name": "Bitcoin", "type": "investimento", "color": "#F7931A"})
+    assert r.status_code == 201
+    return r.json()
+
+
+def test_compra_cripto_requires_quantity(client):
+    conta = _conta_cripto(client)
+    tag = _tag_inv(client)
+    res = client.post("/transacoes/", json={
+        "type": "compra_cripto", "value": "1000.00", "date": "2026-06-01",
+        "account_id": conta["id"], "tag_id": tag["id"],
+    })
+    assert res.status_code == 422
+
+
+def test_compra_cripto_with_quantity_ok(client):
+    conta = _conta_cripto(client)
+    tag = _tag_inv(client)
+    res = client.post("/transacoes/", json={
+        "type": "compra_cripto", "value": "1000.00", "date": "2026-06-01",
+        "account_id": conta["id"], "tag_id": tag["id"], "quantity": "0.00310000",
+    })
+    assert res.status_code == 201
+    assert float(res.json()["quantity"]) == 0.0031
+
+
+def test_despesa_rejects_quantity(client):
+    conta = _conta_cripto(client)
+    res = client.post("/transacoes/", json={
+        "type": "despesa", "value": "50.00", "date": "2026-06-01",
+        "account_id": conta["id"], "quantity": "0.001",
+    })
+    assert res.status_code == 422
