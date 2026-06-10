@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
@@ -5,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
-from app.models import Transacao, TransacaoType
+from app.models import Conta, Indexador, Transacao, TransacaoType
 from app.services import quotes
 
 router = APIRouter(tags=["investimentos"])
@@ -60,3 +61,70 @@ def btc_resumo(db: Session = Depends(get_db)):
         "lucro_pct": lucro_pct,
         "updated_at": quote.get("updated_at"),
     }
+
+
+@router.get("/mercado/cdi")
+def mercado_cdi():
+    return quotes.get_cdi_anual()
+
+
+@router.get("/investimentos/cdi/resumo")
+def cdi_resumo(db: Session = Depends(get_db)):
+    quote = quotes.get_cdi_anual()
+    available = bool(quote.get("available"))
+    cdi = quote.get("annual_rate") if available else None
+
+    contas = (
+        db.query(Conta)
+        .filter(Conta.active.is_(True), Conta.indexador == Indexador.cdi)
+        .all()
+    )
+
+    hoje = date.today()
+    result = []
+    for c in contas:
+        pct = float(c.indexador_percent or 0) / 100.0
+        aportes = (
+            db.query(Transacao)
+            .filter(
+                Transacao.active.is_(True),
+                Transacao.account_id == c.id,
+                Transacao.type == TransacaoType.investimento,
+            )
+            .all()
+        )
+        retiradas = (
+            db.query(Transacao)
+            .filter(
+                Transacao.active.is_(True),
+                Transacao.account_id == c.id,
+                Transacao.type == TransacaoType.retirada_investimento,
+            )
+            .all()
+        )
+        bruto_aportes = sum(float(t.value) for t in aportes)
+        ret_total = sum(float(t.value) for t in retiradas)
+        principal = bruto_aportes - ret_total
+
+        rendimento = None
+        valor_atual = None
+        if cdi is not None:
+            taxa = (cdi / 100.0) * pct
+            rendimento_bruto = 0.0
+            for t in aportes:
+                dias = (hoje - t.date).days
+                fator = (1 + taxa) ** (dias / 365.0)
+                rendimento_bruto += float(t.value) * fator - float(t.value)
+            rendimento = rendimento_bruto
+            valor_atual = principal + rendimento
+
+        result.append({
+            "conta_id": c.id,
+            "conta_nome": c.name,
+            "percent": float(c.indexador_percent or 0),
+            "principal": round(principal, 2),
+            "rendimento": round(rendimento, 2) if rendimento is not None else None,
+            "valor_atual": round(valor_atual, 2) if valor_atual is not None else None,
+        })
+
+    return {"available": available, "annual_rate": cdi, "contas": result}
