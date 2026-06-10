@@ -24,6 +24,8 @@ class TransacaoType(str, enum.Enum):
     receita = "receita"
     investimento = "investimento"
     retirada_investimento = "retirada_investimento"
+    compra_cripto = "compra_cripto"
+    venda_cripto = "venda_cripto"
 
 
 class TagType(str, enum.Enum):
@@ -96,6 +98,9 @@ class Transacao(TimestampMixin, Base):
     )
     payment_method: Mapped[PaymentMethod | None] = mapped_column(
         Enum(PaymentMethod, name="payment_method"), nullable=True
+    )
+    quantity: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 8), nullable=True
     )
 
     account: Mapped["Conta"] = relationship("Conta")
