@@ -68,3 +68,4 @@ class TransacaoOut(BaseModel):
     tag_id: Optional[int]
     payment_method: Optional[PaymentMethod]
     quantity: Optional[Decimal]
+    gasto_fixo_id: Optional[int] = None
