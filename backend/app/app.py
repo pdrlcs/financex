@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import models  # noqa: F401  (ensure models are registered on Base.metadata)
 from app.logging_config import setup_logging
-from app.routers import configs, contas, graphs, orcamentos, tags, transacoes
+from app.routers import (
+    configs, contas, graphs, investimentos, orcamentos, tags, transacoes,
+)
 
 setup_logging()
 
@@ -23,6 +25,7 @@ app.include_router(transacoes.router)
 app.include_router(orcamentos.router)
 app.include_router(configs.router)
 app.include_router(graphs.router)
+app.include_router(investimentos.router)
 
 
 @app.get("/health")
