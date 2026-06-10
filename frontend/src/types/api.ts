@@ -88,6 +88,7 @@ export interface TransacaoOut extends BaseEntity {
   tag_id: number | null;
   payment_method: PaymentMethod | null;
   quantity?: string | null;
+  gasto_fixo_id: number | null;
 }
 
 export interface TransacaoCreate {
@@ -155,6 +156,45 @@ export interface ConfigImportResult {
 }
 
 // ─── Mercado / Investimentos (BTC) ────────────────────────────────────────────
+
+// ─── Gasto Fixo ──────────────────────────────────────────────────────────────
+
+export interface GastoFixoOut extends BaseEntity {
+  name: string;
+  tag_id: number;
+  expected_value: string;
+  default_account_id: number | null;
+  default_payment_method: PaymentMethod | null;
+  due_day: number | null;
+  start_year: number;
+  start_month: number;
+}
+
+export interface GastoFixoCreate {
+  name: string;
+  tag_id: number;
+  expected_value: string;
+  default_account_id?: number | null;
+  default_payment_method?: PaymentMethod | null;
+  due_day?: number | null;
+  start_year: number;
+  start_month: number;
+}
+
+export type GastoFixoUpdate = Partial<GastoFixoCreate>;
+
+export interface GastoFixoStatus {
+  gasto_fixo: GastoFixoOut;
+  pago: boolean;
+  transacao: TransacaoOut | null;
+}
+
+export interface MarcarPagoPayload {
+  value: string;
+  date: string;
+  account_id: number;
+  payment_method?: PaymentMethod | null;
+}
 
 export interface MercadoBtc {
   available: boolean;
