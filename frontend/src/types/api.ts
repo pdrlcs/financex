@@ -29,6 +29,9 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const CONTA_TYPES = ["banco", "investimento", "carteira"] as const;
 export type ContaType = (typeof CONTA_TYPES)[number];
 
+export const INDEXADORES = ["cdi"] as const;
+export type Indexador = (typeof INDEXADORES)[number];
+
 // ─── Campos comuns (TimestampMixin) ───────────────────────────────────────────
 
 interface BaseEntity {
@@ -60,12 +63,16 @@ export interface ContaOut extends BaseEntity {
   name: string;
   type: ContaType;
   color: string;
+  indexador: Indexador | null;
+  indexador_percent: string | null;
 }
 
 export interface ContaCreate {
   name: string;
   type: ContaType;
   color: string;
+  indexador?: Indexador | null;
+  indexador_percent?: string | null;
 }
 
 export type ContaUpdate = Partial<ContaCreate>;
@@ -167,6 +174,28 @@ export interface InvestimentoBtcResumo {
   lucro_prejuizo: number | null;
   lucro_pct: number | null;
   updated_at?: string | null;
+}
+
+export interface MercadoCdi {
+  available: boolean;
+  annual_rate?: number;
+  date?: string | null;
+  source: string;
+}
+
+export interface InvestimentoCdiContaResumo {
+  conta_id: number;
+  conta_nome: string;
+  percent: number;
+  principal: number;
+  rendimento: number | null;
+  valor_atual: number | null;
+}
+
+export interface InvestimentoCdiResumo {
+  available: boolean;
+  annual_rate: number | null;
+  contas: InvestimentoCdiContaResumo[];
 }
 
 export interface HealthResponse {
