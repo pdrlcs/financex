@@ -1,4 +1,4 @@
-import { Pencil, Plus, Target, X } from "lucide-react";
+import { Check, Pencil, Plus, Target, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -11,15 +11,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Segmented } from "@/features/dashboard/segmented";
+import { useContas } from "@/hooks/useContas";
+import {
+  useGastoFixoMutations,
+  useGastosFixosStatus,
+} from "@/hooks/useGastosFixos";
 import { useGraph } from "@/hooks/useGraph";
 import { useOrcamentoMutations, useOrcamentos } from "@/hooks/useOrcamentos";
 import { useTags } from "@/hooks/useTags";
 import { ApiError } from "@/lib/api";
 import { MONTHS_PT } from "@/lib/constants";
 import { fmt } from "@/lib/format";
-import type { OrcamentoCreate, OrcamentoOut } from "@/types/api";
+import type {
+  GastoFixoCreate,
+  GastoFixoOut,
+  MarcarPagoPayload,
+  OrcamentoCreate,
+  OrcamentoOut,
+} from "@/types/api";
 import type { OrcamentoStatus, ProgressoData } from "@/types/graphs";
 
+import { GastoFixoFormDialog } from "./gasto-fixo-form-dialog";
+import { MarcarPagoDialog } from "./marcar-pago-dialog";
 import { OrcamentoFormDialog } from "./orcamento-form-dialog";
 
 const STATUS_INFO: Record<OrcamentoStatus, { color: string; label: string }> = {
@@ -49,10 +63,21 @@ export function Orcamentos() {
   const [editTarget, setEditTarget] = useState<OrcamentoOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrcamentoOut | null>(null);
 
+  const [aba, setAba] = useState<"limites" | "gastos-fixos">("limites");
+  const [gfFormOpen, setGfFormOpen] = useState(false);
+  const [gfEdit, setGfEdit] = useState<GastoFixoOut | null>(null);
+  const [gfDelete, setGfDelete] = useState<GastoFixoOut | null>(null);
+  const [pagarTarget, setPagarTarget] = useState<GastoFixoOut | null>(null);
+  const [desmarcarTarget, setDesmarcarTarget] = useState<GastoFixoOut | null>(null);
+
   const orcamentos = useOrcamentos(year, month);
   const progresso = useGraph<ProgressoData>("orcamento/progresso", { year, month });
   const { data: tags } = useTags();
   const { create, update, remove } = useOrcamentoMutations();
+
+  const statusQuery = useGastosFixosStatus(year, month);
+  const { data: contas } = useContas();
+  const gf = useGastoFixoMutations();
 
   const tagMap = useMemo(() => new Map((tags ?? []).map((t) => [t.id, t])), [tags]);
   const despesaTags = useMemo(() => (tags ?? []).filter((t) => t.type === "despesa"), [tags]);
@@ -128,6 +153,62 @@ export function Orcamentos() {
     }
   };
 
+  const handleGfSubmit = async (payload: GastoFixoCreate, isEdit: boolean) => {
+    try {
+      if (isEdit && gfEdit) {
+        await gf.update.mutateAsync({ id: gfEdit.id, payload });
+        toast.success("Gasto fixo atualizado.");
+      } else {
+        await gf.create.mutateAsync(payload);
+        toast.success("Gasto fixo criado.");
+      }
+      setGfFormOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "Não foi possível salvar.",
+      );
+    }
+  };
+
+  const handlePagar = async (payload: MarcarPagoPayload) => {
+    if (!pagarTarget) return;
+    try {
+      await gf.marcarPago.mutateAsync({ id: pagarTarget.id, year, month, payload });
+      toast.success("Pagamento registrado.");
+      setPagarTarget(null);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "Não foi possível registrar.",
+      );
+    }
+  };
+
+  const handleDesmarcar = async () => {
+    if (!desmarcarTarget) return;
+    try {
+      await gf.desmarcar.mutateAsync({ id: desmarcarTarget.id, year, month });
+      toast.success("Pagamento desmarcado.");
+      setDesmarcarTarget(null);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "Não foi possível desmarcar.",
+      );
+    }
+  };
+
+  const handleGfDelete = async () => {
+    if (!gfDelete) return;
+    try {
+      await gf.remove.mutateAsync(gfDelete.id);
+      toast.success("Gasto fixo removido.");
+      setGfDelete(null);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "Não foi possível remover.",
+      );
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl animate-rise">
       {/* Cabeçalho */}
@@ -141,10 +222,24 @@ export function Orcamentos() {
             </span>
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus size={17} />
-          Orçamento
-        </Button>
+        {aba === "limites" && (
+          <Button onClick={openNew}>
+            <Plus size={17} />
+            Orçamento
+          </Button>
+        )}
+      </div>
+
+      {/* Abas: Limites | Gastos Fixos */}
+      <div className="mb-5">
+        <Segmented
+          value={aba}
+          onChange={(v) => setAba(v)}
+          options={[
+            { id: "limites", label: "Limites" },
+            { id: "gastos-fixos", label: "Gastos Fixos" },
+          ]}
+        />
       </div>
 
       {/* Seletor de mês/ano + resumo */}
@@ -175,7 +270,7 @@ export function Orcamentos() {
             </SelectContent>
           </Select>
         </div>
-        {rows.length > 0 && (
+        {aba === "limites" && rows.length > 0 && (
           <div className="num text-sm text-muted-foreground">
             Realizado{" "}
             <strong className="text-foreground">{fmt.brl(totalRealizado)}</strong> de{" "}
@@ -184,8 +279,8 @@ export function Orcamentos() {
         )}
       </div>
 
-      {/* Lista */}
-      {orcamentos.isLoading ? (
+      {/* Lista de limites */}
+      {aba === "limites" && (orcamentos.isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="board-card h-[92px] animate-pulse bg-muted/40" />
@@ -281,6 +376,119 @@ export function Orcamentos() {
             );
           })}
         </div>
+      ))}
+
+      {/* Lista de gastos fixos */}
+      {aba === "gastos-fixos" && (
+        <>
+          <div className="mb-5 flex justify-end">
+            <Button
+              onClick={() => {
+                setGfEdit(null);
+                setGfFormOpen(true);
+              }}
+            >
+              <Plus size={17} /> Gasto fixo
+            </Button>
+          </div>
+
+          {statusQuery.isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="board-card h-[76px] animate-pulse bg-muted/40" />
+              ))}
+            </div>
+          ) : (statusQuery.data ?? []).length === 0 ? (
+            <div className="board-card flex flex-col items-center gap-3 py-14 text-center text-muted-foreground">
+              <Target size={36} strokeWidth={1.25} />
+              <div className="text-sm font-semibold text-foreground">
+                Nenhum gasto fixo em {MONTHS_PT[month - 1]}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setGfEdit(null);
+                  setGfFormOpen(true);
+                }}
+              >
+                <Plus size={15} /> Criar gasto fixo
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(statusQuery.data ?? []).map(({ gasto_fixo: g, pago, transacao }) => {
+                const tag = tagMap.get(g.tag_id);
+                return (
+                  <div key={g.id} className="board-card is-hoverable flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 font-semibold">
+                      {pago ? (
+                        <Check size={16} className="text-receita" />
+                      ) : (
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: tag?.color ?? "var(--c-neutro)" }}
+                        />
+                      )}
+                      {g.name}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {pago && transacao ? (
+                        <>
+                          <span className="num text-sm text-muted-foreground">
+                            <strong className="text-foreground">
+                              {fmt.brl(transacao.value)}
+                            </strong>{" "}
+                            · {transacao.date}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDesmarcarTarget(g)}
+                          >
+                            Desmarcar
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="num text-sm text-muted-foreground">
+                            {fmt.brl(g.expected_value)}
+                          </span>
+                          <Button size="sm" onClick={() => setPagarTarget(g)}>
+                            Marcar como pago
+                          </Button>
+                        </>
+                      )}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          title="Editar"
+                          aria-label="Editar gasto fixo"
+                          onClick={() => {
+                            setGfEdit(g);
+                            setGfFormOpen(true);
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Remover"
+                          aria-label="Remover gasto fixo"
+                          onClick={() => setGfDelete(g)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-despesa/10 hover:text-despesa"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       <OrcamentoFormDialog
@@ -309,6 +517,59 @@ export function Orcamentos() {
         destructive
         loading={remove.isPending}
         onConfirm={handleDelete}
+      />
+
+      <GastoFixoFormDialog
+        open={gfFormOpen}
+        onOpenChange={setGfFormOpen}
+        initial={gfEdit}
+        tagOptions={despesaTags}
+        contaOptions={contas ?? []}
+        year={year}
+        month={month}
+        submitting={gf.create.isPending || gf.update.isPending}
+        onSubmit={handleGfSubmit}
+      />
+
+      <MarcarPagoDialog
+        open={pagarTarget !== null}
+        onOpenChange={(o) => !o && setPagarTarget(null)}
+        gastoFixo={pagarTarget}
+        contaOptions={contas ?? []}
+        year={year}
+        month={month}
+        submitting={gf.marcarPago.isPending}
+        onSubmit={handlePagar}
+      />
+
+      <ConfirmDialog
+        open={desmarcarTarget !== null}
+        onOpenChange={(o) => !o && setDesmarcarTarget(null)}
+        title="Desmarcar pagamento?"
+        description={
+          desmarcarTarget
+            ? `A transação de ${desmarcarTarget.name} em ${MONTHS_PT[month - 1]} será removida.`
+            : ""
+        }
+        confirmLabel="Desmarcar"
+        destructive
+        loading={gf.desmarcar.isPending}
+        onConfirm={handleDesmarcar}
+      />
+
+      <ConfirmDialog
+        open={gfDelete !== null}
+        onOpenChange={(o) => !o && setGfDelete(null)}
+        title="Remover gasto fixo?"
+        description={
+          gfDelete
+            ? `O template "${gfDelete.name}" será removido. As transações já registradas continuam no histórico.`
+            : ""
+        }
+        confirmLabel="Remover"
+        destructive
+        loading={gf.remove.isPending}
+        onConfirm={handleGfDelete}
       />
     </div>
   );
