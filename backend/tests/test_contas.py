@@ -245,3 +245,46 @@ def test_delete_conta_already_inactive(client):
     client.delete(f"/contas/{conta_id}")
     res = client.delete(f"/contas/{conta_id}")
     assert res.status_code == 404
+
+
+# ─── Indexador (CDI) ───────────────────────────────────────────────────────────
+
+def test_create_conta_cdi_ok(client):
+    res = client.post("/contas", json={
+        "name": "CDB 110", "type": "investimento", "color": "#10B981",
+        "indexador": "cdi", "indexador_percent": "110.00",
+    })
+    assert res.status_code == 201
+    data = res.json()
+    assert data["indexador"] == "cdi"
+    assert float(data["indexador_percent"]) == 110.0
+
+
+def test_create_conta_cdi_requires_percent(client):
+    res = client.post("/contas", json={
+        "name": "CDB sem pct", "type": "investimento", "color": "#10B981",
+        "indexador": "cdi",
+    })
+    assert res.status_code == 422
+
+
+def test_create_conta_cdi_requires_investimento_type(client):
+    res = client.post("/contas", json={
+        "name": "Banco CDI", "type": "banco", "color": "#10B981",
+        "indexador": "cdi", "indexador_percent": "100.00",
+    })
+    assert res.status_code == 422
+
+
+def test_update_conta_set_and_clear_indexador(client):
+    base = client.post("/contas", json={
+        "name": "Reserva", "type": "investimento", "color": "#10B981",
+    }).json()
+    r = client.put(f"/contas/{base['id']}", json={
+        "indexador": "cdi", "indexador_percent": "100.00",
+    })
+    assert r.status_code == 200
+    assert r.json()["indexador"] == "cdi"
+    r = client.put(f"/contas/{base['id']}", json={"indexador": None, "indexador_percent": None})
+    assert r.status_code == 200
+    assert r.json()["indexador"] is None

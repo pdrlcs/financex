@@ -8,6 +8,10 @@ from app.dependencies import get_db
 from app.models import Conta, ContaType
 from app.schemas.conta import ContaCreate, ContaOut, ContaUpdate
 
+# Estados de erro de indexador reusados no create/update
+_INDEXADOR_TYPE_ERR = "indexador requires type 'investimento'."
+_INDEXADOR_PCT_ERR = "indexador_percent is required and must be > 0."
+
 router = APIRouter(prefix="/contas", tags=["contas"])
 
 
@@ -45,7 +49,13 @@ def list_contas(
 @router.post("/", response_model=ContaOut, status_code=HTTPStatus.CREATED)
 def create_conta(payload: ContaCreate, db: Session = Depends(get_db)):
     _check_uniqueness(db, payload.name)
-    conta = Conta(name=payload.name, type=payload.type, color=payload.color)
+    conta = Conta(
+        name=payload.name,
+        type=payload.type,
+        color=payload.color,
+        indexador=payload.indexador,
+        indexador_percent=payload.indexador_percent,
+    )
     db.add(conta)
     db.commit()
     db.refresh(conta)
@@ -70,12 +80,30 @@ def update_conta(conta_id: int, payload: ContaUpdate, db: Session = Depends(get_
     if payload.name is not None:
         _check_uniqueness(db, payload.name, exclude_id=conta_id)
 
+    data = payload.model_dump(exclude_unset=True)
     if payload.name is not None:
         conta.name = payload.name
     if payload.type is not None:
         conta.type = payload.type
     if payload.color is not None:
         conta.color = payload.color
+    if "indexador" in data:
+        conta.indexador = payload.indexador
+    if "indexador_percent" in data:
+        conta.indexador_percent = payload.indexador_percent
+
+    # Estado efetivo após aplicar o patch
+    if conta.indexador is not None:
+        if conta.type != ContaType.investimento:
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                detail=_INDEXADOR_TYPE_ERR,
+            )
+        if conta.indexador_percent is None or conta.indexador_percent <= 0:
+            raise HTTPException(
+                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+                detail=_INDEXADOR_PCT_ERR,
+            )
 
     db.commit()
     db.refresh(conta)
