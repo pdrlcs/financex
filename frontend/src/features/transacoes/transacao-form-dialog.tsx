@@ -51,18 +51,33 @@ import {
 
 const NONE_TAG = "__none__"; // RHF/Radix não lidam bem com "" como value de Select.
 
-const schema = z.object({
-  type: z.enum(TRANSACAO_TYPES),
-  valueCents: z
-    .number()
-    .int()
-    .positive("Informe um valor maior que zero."),
-  date: z.string().min(1, "Informe a data."),
-  account_id: z.number({ message: "Selecione uma conta." }).int(),
-  tag_id: z.number({ message: "Selecione uma categoria." }).int(),
-  payment_method: z.enum(PAYMENT_METHODS),
-  description: z.string().max(255).optional(),
-});
+const schema = z
+  .object({
+    type: z.enum(TRANSACAO_TYPES),
+    valueCents: z
+      .number()
+      .int()
+      .positive("Informe um valor maior que zero."),
+    date: z.string().min(1, "Informe a data."),
+    account_id: z.number({ message: "Selecione uma conta." }).int(),
+    tag_id: z.number({ message: "Selecione uma categoria." }).int(),
+    payment_method: z.enum(PAYMENT_METHODS),
+    description: z.string().max(255).optional(),
+    quantity: z.string().optional(),
+  })
+  .superRefine((v, ctx) => {
+    const cripto = v.type === "compra_cripto" || v.type === "venda_cripto";
+    if (cripto) {
+      const n = Number(v.quantity);
+      if (!v.quantity || !Number.isFinite(n) || n <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["quantity"],
+          message: "Informe a quantidade de BTC (> 0).",
+        });
+      }
+    }
+  });
 
 type FormValues = z.infer<typeof schema>;
 
@@ -171,6 +186,7 @@ export function TransacaoFormDialog({
       tag_id: undefined,
       payment_method: "pix",
       description: "",
+      quantity: "",
     },
   });
 
@@ -185,6 +201,7 @@ export function TransacaoFormDialog({
       tag_id: initial?.tag_id ?? undefined,
       payment_method: initial?.payment_method ?? "pix",
       description: initial?.description ?? "",
+      quantity: initial?.quantity ?? "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial]);
@@ -203,6 +220,8 @@ export function TransacaoFormDialog({
   }, [type]);
 
   const submit = handleSubmit((values) => {
+    const cripto =
+      values.type === "compra_cripto" || values.type === "venda_cripto";
     const payload: TransacaoCreate = {
       type: values.type,
       value: (values.valueCents / 100).toFixed(2),
@@ -211,6 +230,7 @@ export function TransacaoFormDialog({
       tag_id: values.tag_id,
       payment_method: values.payment_method,
       description: values.description?.trim() || null,
+      quantity: cripto ? Number(values.quantity).toFixed(8) : null,
     };
     onSubmit(payload, isEdit);
   });
@@ -258,6 +278,39 @@ export function TransacaoFormDialog({
               <p className="text-xs text-despesa">{errors.valueCents.message}</p>
             )}
           </div>
+
+          {/* Quantidade (só p/ cripto) */}
+          {(type === "compra_cripto" || type === "venda_cripto") && (
+            <div className="space-y-1.5">
+              <Label>Quantidade (BTC)</Label>
+              <Controller
+                control={control}
+                name="quantity"
+                render={({ field }) => (
+                  <Input
+                    inputMode="decimal"
+                    placeholder="0.00000000"
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(e.target.value.replace(/[^\d.]/g, ""))
+                    }
+                    className={cn("num", errors.quantity && "border-despesa")}
+                  />
+                )}
+              />
+              {errors.quantity ? (
+                <p className="text-xs text-despesa">{errors.quantity.message}</p>
+              ) : (
+                Number(watch("quantity")) > 0 &&
+                watch("valueCents") > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Preço médio:{" "}
+                    {fmt.brl(watch("valueCents") / 100 / Number(watch("quantity")))}
+                  </p>
+                )
+              )}
+            </div>
+          )}
 
           {/* Data + Conta */}
           <div className="grid grid-cols-2 gap-3">
