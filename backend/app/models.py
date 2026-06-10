@@ -112,9 +112,13 @@ class Transacao(TimestampMixin, Base):
     quantity: Mapped[Decimal | None] = mapped_column(
         Numeric(18, 8), nullable=True
     )
+    gasto_fixo_id: Mapped[int | None] = mapped_column(
+        ForeignKey("gasto_fixo.id"), nullable=True
+    )
 
     account: Mapped["Conta"] = relationship("Conta")
     tag: Mapped["Tag | None"] = relationship("Tag")
+    gasto_fixo: Mapped["GastoFixo | None"] = relationship("GastoFixo")
 
 
 class Orcamento(TimestampMixin, Base):
@@ -126,3 +130,23 @@ class Orcamento(TimestampMixin, Base):
     limit_value: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
     tag: Mapped["Tag"] = relationship("Tag")
+
+
+class GastoFixo(TimestampMixin, Base):
+    __tablename__ = "gasto_fixo"
+
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False)
+    expected_value: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    default_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("conta.id"), nullable=True
+    )
+    default_payment_method: Mapped[PaymentMethod | None] = mapped_column(
+        Enum(PaymentMethod, name="payment_method"), nullable=True
+    )
+    due_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    start_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_month: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    tag: Mapped["Tag"] = relationship("Tag")
+    default_account: Mapped["Conta | None"] = relationship("Conta")
