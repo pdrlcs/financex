@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
-from app.models import Conta, ContaType, GastoFixo, PaymentMethod, Tag, TagType
+from app.models import Conta, ContaType, GastoFixo, Orcamento, PaymentMethod, Tag, TagType
 
 router = APIRouter(prefix="/configs", tags=["configs"])
 
@@ -40,10 +40,19 @@ class ConfigGastoFixoItem(BaseModel):
     start_month: int = Field(..., ge=1, le=12)
 
 
+class ConfigOrcamentoItem(BaseModel):
+    tag_name: str = Field(..., max_length=64)
+    tag_type: TagType
+    limit_value: Decimal
+    start_year: int
+    start_month: int = Field(..., ge=1, le=12)
+
+
 class ConfigImportBody(BaseModel):
     tags: List[ConfigTagItem] = []
     contas: List[ConfigContaItem] = []
     gastos_fixos: List[ConfigGastoFixoItem] = []
+    orcamentos: List[ConfigOrcamentoItem] = []
 
 
 class ConfigTagOut(BaseModel):
@@ -65,9 +74,20 @@ def export_configs(db: Session = Depends(get_db)) -> Dict[str, Any]:
     tags = db.query(Tag).filter(Tag.active.is_(True)).all()
     contas = db.query(Conta).filter(Conta.active.is_(True)).all()
     gastos_fixos = db.query(GastoFixo).filter(GastoFixo.active.is_(True)).all()
+    orcamentos = db.query(Orcamento).filter(Orcamento.active.is_(True)).all()
     return {
         "tags": [{"name": t.name, "type": t.type, "color": t.color} for t in tags],
         "contas": [{"name": c.name, "type": c.type, "color": c.color} for c in contas],
+        "orcamentos": [
+            {
+                "tag_name": o.tag.name,
+                "tag_type": o.tag.type,
+                "limit_value": o.limit_value,
+                "start_year": o.start_year,
+                "start_month": o.start_month,
+            }
+            for o in orcamentos
+        ],
         "gastos_fixos": [
             {
                 "name": gf.name,
@@ -142,6 +162,38 @@ def import_configs(payload: ConfigImportBody, db: Session = Depends(get_db)) -> 
             db.flush()
         contas_criadas += 1
 
+    orcamentos_criados = 0
+    orcamentos_ignorados = 0
+
+    for item in payload.orcamentos:
+        tag = _resolve_or_create_tag(db, item.tag_name, item.tag_type)
+
+        existing_active = (
+            db.query(Orcamento)
+            .filter(Orcamento.tag_id == tag.id, Orcamento.active.is_(True))
+            .first()
+        )
+        if existing_active:
+            orcamentos_ignorados += 1
+            continue
+
+        existing_inactive = (
+            db.query(Orcamento)
+            .filter(Orcamento.tag_id == tag.id, Orcamento.active.is_(False))
+            .first()
+        )
+        target = existing_inactive or Orcamento(tag_id=tag.id)
+        if existing_inactive:
+            existing_inactive.active = True
+        else:
+            db.add(target)
+
+        target.limit_value = item.limit_value
+        target.start_year = item.start_year
+        target.start_month = item.start_month
+        db.flush()
+        orcamentos_criados += 1
+
     gastos_criados = 0
     gastos_ignorados = 0
 
@@ -196,6 +248,7 @@ def import_configs(payload: ConfigImportBody, db: Session = Depends(get_db)) -> 
     return {
         "tags": {"criadas": tags_criadas, "ignoradas": tags_ignoradas},
         "contas": {"criadas": contas_criadas, "ignoradas": contas_ignoradas},
+        "orcamentos": {"criadas": orcamentos_criados, "ignoradas": orcamentos_ignorados},
         "gastos_fixos": {"criadas": gastos_criados, "ignoradas": gastos_ignorados},
     }
 

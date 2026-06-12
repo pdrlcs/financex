@@ -397,6 +397,157 @@ def test_roundtrip_gasto_fixo(client):
     assert float(gf["expected_value"]) == 1500.00
 
 
+# Orçamentos no export/import
+
+
+def make_orcamento(client, tag_id, start_year=2026, start_month=6, limit_value="220.00"):
+    r = client.post("/orcamentos", json={
+        "tag_id": tag_id,
+        "start_year": start_year,
+        "start_month": start_month,
+        "limit_value": limit_value,
+    })
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_export_includes_orcamentos(client):
+    tag = make_tag(client, name="Delivery", type="despesa", color="#EF4444")
+    make_orcamento(client, tag["id"], start_year=2026, start_month=6, limit_value="220.00")
+
+    data = client.get("/configs/export").json()
+    assert "orcamentos" in data
+    orc = next(o for o in data["orcamentos"] if o["tag_name"] == "Delivery")
+    assert orc["tag_type"] == "despesa"
+    assert float(orc["limit_value"]) == 220.00
+    assert orc["start_year"] == 2026
+    assert orc["start_month"] == 6
+
+
+def test_export_excludes_inactive_orcamento(client):
+    tag = make_tag(client, name="Delivery", type="despesa", color="#EF4444")
+    orc = make_orcamento(client, tag["id"])
+    client.delete(f"/orcamentos/{orc['id']}")
+
+    data = client.get("/configs/export").json()
+    assert all(o["tag_name"] != "Delivery" for o in data["orcamentos"])
+
+
+def test_export_empty_db_has_orcamentos_key(client):
+    data = client.get("/configs/export").json()
+    assert data["orcamentos"] == []
+
+
+def test_import_creates_orcamento(client):
+    r = client.post("/configs/import", json={
+        "tags": [{"name": "Delivery", "type": "despesa", "color": "#EF4444"}],
+        "contas": [],
+        "orcamentos": [{
+            "tag_name": "Delivery",
+            "tag_type": "despesa",
+            "limit_value": "220.00",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    data = r.json()
+    assert data["orcamentos"]["criadas"] == 1
+    assert data["orcamentos"]["ignoradas"] == 0
+
+    listed = client.get("/orcamentos").json()
+    tag = next(t for t in client.get("/tags").json() if t["name"] == "Delivery")
+    orc = next(o for o in listed if o["tag_id"] == tag["id"])
+    assert float(orc["limit_value"]) == 220.00
+    assert orc["start_month"] == 6
+
+
+def test_import_skips_existing_active_orcamento(client):
+    tag = make_tag(client, name="Delivery", type="despesa", color="#EF4444")
+    make_orcamento(client, tag["id"])
+
+    r = client.post("/configs/import", json={
+        "tags": [],
+        "contas": [],
+        "orcamentos": [{
+            "tag_name": "Delivery",
+            "tag_type": "despesa",
+            "limit_value": "999.00",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    assert r.json()["orcamentos"]["criadas"] == 0
+    assert r.json()["orcamentos"]["ignoradas"] == 1
+
+
+def test_import_restores_soft_deleted_orcamento(client):
+    tag = make_tag(client, name="Delivery", type="despesa", color="#EF4444")
+    orc = make_orcamento(client, tag["id"], limit_value="220.00")
+    client.delete(f"/orcamentos/{orc['id']}")
+
+    r = client.post("/configs/import", json={
+        "tags": [],
+        "contas": [],
+        "orcamentos": [{
+            "tag_name": "Delivery",
+            "tag_type": "despesa",
+            "limit_value": "300.00",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    assert r.json()["orcamentos"]["criadas"] == 1
+
+    listed = client.get("/orcamentos").json()
+    restored = next(o for o in listed if o["tag_id"] == tag["id"])
+    assert restored["active"] is True
+    assert float(restored["limit_value"]) == 300.00
+
+
+def test_import_autocreates_missing_tag_for_orcamento(client):
+    r = client.post("/configs/import", json={
+        "tags": [],
+        "contas": [],
+        "orcamentos": [{
+            "tag_name": "Delivery",
+            "tag_type": "despesa",
+            "limit_value": "220.00",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    assert r.json()["orcamentos"]["criadas"] == 1
+
+    tag = next((t for t in client.get("/tags").json() if t["name"] == "Delivery"), None)
+    assert tag is not None
+    assert tag["type"] == "despesa"
+
+
+def test_roundtrip_orcamento(client):
+    tag = make_tag(client, name="Delivery", type="despesa", color="#EF4444")
+    make_orcamento(client, tag["id"], start_year=2026, start_month=6, limit_value="220.00")
+
+    export = client.get("/configs/export").json()
+
+    for o in client.get("/orcamentos").json():
+        client.delete(f"/orcamentos/{o['id']}")
+    for t in client.get("/tags").json():
+        client.delete(f"/tags/{t['id']}")
+
+    r = client.post("/configs/import", json=export)
+    assert r.status_code == 200
+    assert r.json()["orcamentos"]["criadas"] == 1
+
+    listed = client.get("/orcamentos").json()
+    orc = listed[0]
+    assert float(orc["limit_value"]) == 220.00
+    assert orc["start_month"] == 6
+
+
 def test_export_import_roundtrip(client):
     make_tag(client, name="Alimentação", type="despesa", color="#FF6384")
     make_tag(client, name="Salário", type="receita", color="#36A2EB")

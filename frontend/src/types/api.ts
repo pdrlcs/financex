@@ -108,15 +108,15 @@ export type TransacaoUpdate = Partial<TransacaoCreate>;
 
 export interface OrcamentoOut extends BaseEntity {
   tag_id: number;
-  year: number;
-  month: number;
+  start_year: number;
+  start_month: number;
   limit_value: string;
 }
 
 export interface OrcamentoCreate {
   tag_id: number;
-  year: number;
-  month: number;
+  start_year: number;
+  start_month: number;
   limit_value: string;
 }
 
@@ -157,10 +157,20 @@ export interface ConfigGastoFixoItem {
   start_month: number;
 }
 
+/** Item de orçamento no export/import de configs (tag por nome). */
+export interface ConfigOrcamentoItem {
+  tag_name: string;
+  tag_type: TagType;
+  limit_value: string;
+  start_year: number;
+  start_month: number;
+}
+
 /** Resposta de GET /configs/export (e corpo de POST /configs/import). */
 export interface ConfigsExport {
   tags: ConfigTagItem[];
   contas: ConfigContaItem[];
+  orcamentos: ConfigOrcamentoItem[];
   gastos_fixos: ConfigGastoFixoItem[];
 }
 
@@ -168,6 +178,7 @@ export interface ConfigsExport {
 export interface ConfigImportResult {
   tags: { criadas: number; ignoradas: number };
   contas: { criadas: number; ignoradas: number };
+  orcamentos: { criadas: number; ignoradas: number };
   gastos_fixos: { criadas: number; ignoradas: number };
 }
 

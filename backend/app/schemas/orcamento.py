@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class OrcamentoCreate(BaseModel):
     tag_id: int
-    year: int
-    month: int = Field(..., ge=1, le=12)
+    start_year: int
+    start_month: int = Field(..., ge=1, le=12)
     limit_value: Decimal
 
     @field_validator("limit_value")
@@ -21,8 +21,8 @@ class OrcamentoCreate(BaseModel):
 
 class OrcamentoUpdate(BaseModel):
     tag_id: Optional[int] = None
-    year: Optional[int] = None
-    month: Optional[int] = Field(default=None, ge=1, le=12)
+    start_year: Optional[int] = None
+    start_month: Optional[int] = Field(default=None, ge=1, le=12)
     limit_value: Optional[Decimal] = None
 
     @field_validator("limit_value")
@@ -41,6 +41,6 @@ class OrcamentoOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     tag_id: int
-    year: int
-    month: int
+    start_year: int
+    start_month: int
     limit_value: Decimal

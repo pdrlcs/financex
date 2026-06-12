@@ -34,7 +34,9 @@ def make_transacao(client, account_id, type="despesa", value="100.00", date_str=
 def make_orcamento(client, tag_id, year=None, month=None, limit_value="1000.00"):
     year = year or TODAY.year
     month = month or TODAY.month
-    r = client.post("/orcamentos", json={"tag_id": tag_id, "year": year, "month": month, "limit_value": limit_value})
+    r = client.post("/orcamentos", json={
+        "tag_id": tag_id, "start_year": year, "start_month": month, "limit_value": limit_value,
+    })
     assert r.status_code == 201, r.text
     return r.json()
 

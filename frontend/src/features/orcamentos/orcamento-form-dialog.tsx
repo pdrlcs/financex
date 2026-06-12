@@ -30,8 +30,9 @@ import type { OrcamentoCreate, OrcamentoOut, TagOut } from "@/types/api";
 /**
  * Modal de cadastro/edição de orçamento (F6). RHF + Zod espelhando o backend
  * (schemas/orcamento.py + routers/orcamentos.py): tag de despesa, limit_value > 0,
- * único por (tag, year, month). O mês/ano vêm da tela; as tags já vêm filtradas
- * por despesa e, na criação, sem as que já têm orçamento no mês.
+ * um orçamento ativo por tag. O orçamento é um template: vale do mês de início
+ * (a tela atual, na criação) em diante. As tags já vêm filtradas por despesa e,
+ * na criação, sem as que já têm orçamento. Na edição o início não muda.
  */
 
 const schema = z.object({
@@ -89,8 +90,8 @@ export function OrcamentoFormDialog({
     onSubmit(
       {
         tag_id: values.tag_id,
-        year,
-        month,
+        start_year: year,
+        start_month: month,
         limit_value: (values.valueCents / 100).toFixed(2),
       },
       isEdit,
@@ -103,7 +104,9 @@ export function OrcamentoFormDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar orçamento" : "Novo orçamento"}</DialogTitle>
           <DialogDescription>
-            Limite de gasto para {MONTHS_PT[month - 1]} de {year}.
+            {isEdit
+              ? "Limite de gasto da categoria (vale para todos os meses)."
+              : `Limite de gasto a partir de ${MONTHS_PT[month - 1]} de ${year} (vale para todos os meses seguintes).`}
           </DialogDescription>
         </DialogHeader>
 
@@ -143,7 +146,7 @@ export function OrcamentoFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Limite do mês</Label>
+            <Label>Limite mensal</Label>
             <Controller
               control={control}
               name="valueCents"

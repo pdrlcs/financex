@@ -30,15 +30,11 @@ def _get_valid_despesa_tag(db: Session, tag_id: int) -> Tag:
 def _check_uniqueness(
     db: Session,
     tag_id: int,
-    year: int,
-    month: int,
     exclude_id: Optional[int] = None,
 ) -> None:
-    """Raise 409 if an active orcamento with the same (tag_id, year, month) already exists."""
+    """Raise 409 if another active orcamento already exists for this tag."""
     query = db.query(Orcamento).filter(
         Orcamento.tag_id == tag_id,
-        Orcamento.year == year,
-        Orcamento.month == month,
         Orcamento.active.is_(True),
     )
     if exclude_id is not None:
@@ -46,7 +42,7 @@ def _check_uniqueness(
     if query.first():
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail="An active orcamento with this (tag_id, year, month) already exists.",
+            detail="An active orcamento for this tag already exists.",
         )
 
 
@@ -59,10 +55,11 @@ def list_orcamentos(
     db: Session = Depends(get_db),
 ):
     query = db.query(Orcamento).filter(Orcamento.active.is_(active))
-    if year is not None:
-        query = query.filter(Orcamento.year == year)
-    if month is not None:
-        query = query.filter(Orcamento.month == month)
+    # Projeta o template no mês consultado: só os iniciados até (year, month).
+    if year is not None and month is not None:
+        query = query.filter(
+            (Orcamento.start_year * 12 + Orcamento.start_month) <= (year * 12 + month)
+        )
     if tag_id is not None:
         query = query.filter(Orcamento.tag_id == tag_id)
     return query.all()
@@ -71,12 +68,12 @@ def list_orcamentos(
 @router.post("/", response_model=OrcamentoOut, status_code=HTTPStatus.CREATED)
 def create_orcamento(payload: OrcamentoCreate, db: Session = Depends(get_db)):
     _get_valid_despesa_tag(db, payload.tag_id)
-    _check_uniqueness(db, payload.tag_id, payload.year, payload.month)
+    _check_uniqueness(db, payload.tag_id)
 
     orcamento = Orcamento(
         tag_id=payload.tag_id,
-        year=payload.year,
-        month=payload.month,
+        start_year=payload.start_year,
+        start_month=payload.start_month,
         limit_value=payload.limit_value,
     )
     db.add(orcamento)
@@ -110,22 +107,15 @@ def update_orcamento(orcamento_id: int, payload: OrcamentoUpdate, db: Session = 
     # Validate tag_id if changing
     if payload.tag_id is not None:
         _get_valid_despesa_tag(db, payload.tag_id)
-
-    # Compute the effective (tag_id, year, month) after update to check uniqueness
-    effective_tag_id = payload.tag_id if payload.tag_id is not None else orcamento.tag_id
-    effective_year = payload.year if payload.year is not None else orcamento.year
-    effective_month = payload.month if payload.month is not None else orcamento.month
-
-    # Only check uniqueness if any of the combo fields are changing
-    if payload.tag_id is not None or payload.year is not None or payload.month is not None:
-        _check_uniqueness(db, effective_tag_id, effective_year, effective_month, exclude_id=orcamento_id)
+        # Mudar a tag só é permitido se a nova tag não tiver outro orçamento ativo.
+        _check_uniqueness(db, payload.tag_id, exclude_id=orcamento_id)
 
     if payload.tag_id is not None:
         orcamento.tag_id = payload.tag_id
-    if payload.year is not None:
-        orcamento.year = payload.year
-    if payload.month is not None:
-        orcamento.month = payload.month
+    if payload.start_year is not None:
+        orcamento.start_year = payload.start_year
+    if payload.start_month is not None:
+        orcamento.start_month = payload.start_month
     if payload.limit_value is not None:
         orcamento.limit_value = payload.limit_value
 

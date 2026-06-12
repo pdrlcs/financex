@@ -125,8 +125,8 @@ class Orcamento(TimestampMixin, Base):
     __tablename__ = "orcamento"
 
     tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), nullable=False)
-    year: Mapped[int] = mapped_column(Integer, nullable=False)
-    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_month: Mapped[int] = mapped_column(Integer, nullable=False)
     limit_value: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
     tag: Mapped["Tag"] = relationship("Tag")

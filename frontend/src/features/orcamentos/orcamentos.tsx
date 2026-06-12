@@ -126,7 +126,11 @@ export function Orcamentos() {
   const handleSubmit = async (payload: OrcamentoCreate, isEdit: boolean) => {
     try {
       if (isEdit && editTarget) {
-        await update.mutateAsync({ id: editTarget.id, payload });
+        // Edição não altera o mês de início do template.
+        await update.mutateAsync({
+          id: editTarget.id,
+          payload: { tag_id: payload.tag_id, limit_value: payload.limit_value },
+        });
         toast.success("Orçamento atualizado.");
       } else {
         await create.mutateAsync(payload);
@@ -510,7 +514,7 @@ export function Orcamentos() {
           deleteTarget
             ? `O limite de ${fmt.brl(deleteTarget.limit_value)} para ${
                 tagMap.get(deleteTarget.tag_id)?.name ?? "esta categoria"
-              } em ${MONTHS_PT[month - 1]} será removido.`
+              } será removido de todos os meses.`
             : ""
         }
         confirmLabel="Remover"

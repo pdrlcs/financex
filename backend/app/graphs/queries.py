@@ -991,8 +991,7 @@ def orcamento_realizado(db: Session, year: int, month: int, exclude_tags: List[i
         db.query(Orcamento)
         .filter(
             Orcamento.active.is_(True),
-            Orcamento.year == year,
-            Orcamento.month == month,
+            (Orcamento.start_year * 12 + Orcamento.start_month) <= (year * 12 + month),
         )
         .join(Tag, Orcamento.tag_id == Tag.id)
         .all()
@@ -1041,8 +1040,7 @@ def orcamento_progresso(db: Session, year: int, month: int, exclude_tags: List[i
         db.query(Orcamento)
         .filter(
             Orcamento.active.is_(True),
-            Orcamento.year == year,
-            Orcamento.month == month,
+            (Orcamento.start_year * 12 + Orcamento.start_month) <= (year * 12 + month),
         )
         .join(Tag, Orcamento.tag_id == Tag.id)
         .all()
@@ -1095,8 +1093,7 @@ def orcamento_alerta_estouro(db: Session, year: int, month: int, exclude_tags: L
         db.query(Orcamento)
         .filter(
             Orcamento.active.is_(True),
-            Orcamento.year == year,
-            Orcamento.month == month,
+            (Orcamento.start_year * 12 + Orcamento.start_month) <= (year * 12 + month),
         )
         .join(Tag, Orcamento.tag_id == Tag.id)
         .all()
