@@ -143,16 +143,32 @@ export interface ConfigContaItem {
   color: string;
 }
 
+/** Item de gasto fixo no export/import de configs (tag/conta por nome). */
+export interface ConfigGastoFixoItem {
+  name: string;
+  tag_name: string;
+  tag_type: TagType;
+  expected_value: string;
+  default_account_name: string | null;
+  default_account_type: ContaType | null;
+  default_payment_method: PaymentMethod | null;
+  due_day: number | null;
+  start_year: number;
+  start_month: number;
+}
+
 /** Resposta de GET /configs/export (e corpo de POST /configs/import). */
 export interface ConfigsExport {
   tags: ConfigTagItem[];
   contas: ConfigContaItem[];
+  gastos_fixos: ConfigGastoFixoItem[];
 }
 
 /** Resposta de POST /configs/import (merge). */
 export interface ConfigImportResult {
   tags: { criadas: number; ignoradas: number };
   contas: { criadas: number; ignoradas: number };
+  gastos_fixos: { criadas: number; ignoradas: number };
 }
 
 // ─── Mercado / Investimentos (BTC) ────────────────────────────────────────────

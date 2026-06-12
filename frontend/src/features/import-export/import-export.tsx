@@ -128,11 +128,13 @@ export function ImportExport() {
       const body = {
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         contas: Array.isArray(parsed.contas) ? parsed.contas : [],
+        gastos_fixos: Array.isArray(parsed.gastos_fixos) ? parsed.gastos_fixos : [],
       };
       const result = await api.post<ConfigImportResult>("/configs/import", body);
       setCfgResult(result);
       qc.invalidateQueries({ queryKey: ["tags"] });
       qc.invalidateQueries({ queryKey: ["contas"] });
+      qc.invalidateQueries({ queryKey: ["gastos-fixos"] });
       qc.invalidateQueries({ queryKey: ["graphs"] });
       toast.success("Configurações importadas.");
     } catch (error) {
@@ -152,7 +154,7 @@ export function ImportExport() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Importar / Exportar</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Transações em CSV e configurações (tags e contas) em JSON.
+          Transações em CSV e configurações (tags, contas e gastos fixos) em JSON.
         </p>
       </div>
 
@@ -278,7 +280,7 @@ export function ImportExport() {
             <Settings2 size={18} />
           </span>
           <div>
-            <h2 className="font-semibold">Configurações (tags e contas)</h2>
+            <h2 className="font-semibold">Configurações (tags, contas e gastos fixos)</h2>
             <p className="text-[13px] text-muted-foreground">
               Exporte como JSON; importe fazendo merge (não duplica existentes).
             </p>
@@ -316,7 +318,12 @@ export function ImportExport() {
             <span className="num font-semibold text-receita">{cfgResult.tags.criadas}</span>{" "}
             criadas, <span className="num">{cfgResult.tags.ignoradas}</span> ignoradas · Contas:{" "}
             <span className="num font-semibold text-receita">{cfgResult.contas.criadas}</span>{" "}
-            criadas, <span className="num">{cfgResult.contas.ignoradas}</span> ignoradas
+            criadas, <span className="num">{cfgResult.contas.ignoradas}</span> ignoradas ·
+            Gastos fixos:{" "}
+            <span className="num font-semibold text-receita">
+              {cfgResult.gastos_fixos.criadas}
+            </span>{" "}
+            criados, <span className="num">{cfgResult.gastos_fixos.ignoradas}</span> ignorados
           </div>
         )}
       </section>

@@ -10,6 +10,20 @@ def make_conta(client, name="Nubank", type="banco", color="#820AD1"):
     return r.json()
 
 
+def make_gasto_fixo(client, tag_id, **over):
+    body = {
+        "name": "Aluguel",
+        "tag_id": tag_id,
+        "expected_value": "1500.00",
+        "start_year": 2026,
+        "start_month": 6,
+    }
+    body.update(over)
+    r = client.post("/gastos-fixos/", json=body)
+    assert r.status_code == 201
+    return r.json()
+
+
 # GET /configs/export
 
 
@@ -169,6 +183,218 @@ def test_import_mix_new_and_existing_tags(client):
     data = r.json()
     assert data["tags"]["criadas"] == 1
     assert data["tags"]["ignoradas"] == 1
+
+
+# Gastos fixos no export/import
+
+
+def test_export_includes_gastos_fixos(client):
+    tag = make_tag(client, name="Moradia", type="despesa", color="#FF6384")
+    conta = make_conta(client, name="Nubank", type="banco", color="#820AD1")
+    make_gasto_fixo(
+        client,
+        tag["id"],
+        name="Aluguel",
+        default_account_id=conta["id"],
+        default_payment_method="pix",
+        due_day=10,
+    )
+
+    data = client.get("/configs/export").json()
+    assert "gastos_fixos" in data
+    gf = next(g for g in data["gastos_fixos"] if g["name"] == "Aluguel")
+    assert gf["tag_name"] == "Moradia"
+    assert gf["tag_type"] == "despesa"
+    assert gf["default_account_name"] == "Nubank"
+    assert gf["default_account_type"] == "banco"
+    assert gf["default_payment_method"] == "pix"
+    assert gf["due_day"] == 10
+    assert float(gf["expected_value"]) == 1500.00
+    assert gf["start_year"] == 2026
+    assert gf["start_month"] == 6
+
+
+def test_export_gasto_fixo_without_account(client):
+    tag = make_tag(client, name="Moradia", type="despesa", color="#FF6384")
+    make_gasto_fixo(client, tag["id"], name="Internet")
+
+    data = client.get("/configs/export").json()
+    gf = next(g for g in data["gastos_fixos"] if g["name"] == "Internet")
+    assert gf["default_account_name"] is None
+    assert gf["default_account_type"] is None
+
+
+def test_export_excludes_inactive_gasto_fixo(client):
+    tag = make_tag(client, name="Moradia", type="despesa", color="#FF6384")
+    gf = make_gasto_fixo(client, tag["id"], name="Aluguel")
+    client.delete(f"/gastos-fixos/{gf['id']}")
+
+    data = client.get("/configs/export").json()
+    assert all(g["name"] != "Aluguel" for g in data["gastos_fixos"])
+
+
+def test_export_empty_db_has_gastos_fixos_key(client):
+    data = client.get("/configs/export").json()
+    assert data["gastos_fixos"] == []
+
+
+def test_import_creates_gasto_fixo(client):
+    r = client.post("/configs/import", json={
+        "tags": [{"name": "Moradia", "type": "despesa", "color": "#FF6384"}],
+        "contas": [{"name": "Nubank", "type": "banco", "color": "#820AD1"}],
+        "gastos_fixos": [{
+            "name": "Aluguel",
+            "tag_name": "Moradia",
+            "tag_type": "despesa",
+            "expected_value": "1500.00",
+            "default_account_name": "Nubank",
+            "default_account_type": "banco",
+            "default_payment_method": "pix",
+            "due_day": 10,
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    data = r.json()
+    assert data["gastos_fixos"]["criadas"] == 1
+    assert data["gastos_fixos"]["ignoradas"] == 0
+
+    listed = client.get("/gastos-fixos/").json()
+    gf = next(g for g in listed if g["name"] == "Aluguel")
+    tag = next(t for t in client.get("/tags").json() if t["name"] == "Moradia")
+    conta = next(c for c in client.get("/contas").json() if c["name"] == "Nubank")
+    assert gf["tag_id"] == tag["id"]
+    assert gf["default_account_id"] == conta["id"]
+    assert gf["default_payment_method"] == "pix"
+
+
+def test_import_skips_existing_active_gasto_fixo(client):
+    tag = make_tag(client, name="Moradia", type="despesa", color="#FF6384")
+    make_gasto_fixo(client, tag["id"], name="Aluguel")
+
+    r = client.post("/configs/import", json={
+        "tags": [],
+        "contas": [],
+        "gastos_fixos": [{
+            "name": "Aluguel",
+            "tag_name": "Moradia",
+            "tag_type": "despesa",
+            "expected_value": "1500.00",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    data = r.json()
+    assert data["gastos_fixos"]["criadas"] == 0
+    assert data["gastos_fixos"]["ignoradas"] == 1
+
+
+def test_import_restores_soft_deleted_gasto_fixo(client):
+    tag = make_tag(client, name="Moradia", type="despesa", color="#FF6384")
+    gf = make_gasto_fixo(client, tag["id"], name="Aluguel", expected_value="1000.00")
+    client.delete(f"/gastos-fixos/{gf['id']}")
+
+    r = client.post("/configs/import", json={
+        "tags": [],
+        "contas": [],
+        "gastos_fixos": [{
+            "name": "Aluguel",
+            "tag_name": "Moradia",
+            "tag_type": "despesa",
+            "expected_value": "1800.00",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    assert r.json()["gastos_fixos"]["criadas"] == 1
+
+    listed = client.get("/gastos-fixos/").json()
+    restored = next(g for g in listed if g["name"] == "Aluguel")
+    assert restored["active"] is True
+    assert float(restored["expected_value"]) == 1800.00
+
+
+def test_import_autocreates_missing_tag_for_gasto_fixo(client):
+    r = client.post("/configs/import", json={
+        "tags": [],
+        "contas": [],
+        "gastos_fixos": [{
+            "name": "Aluguel",
+            "tag_name": "Moradia",
+            "tag_type": "despesa",
+            "expected_value": "1500.00",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+    assert r.json()["gastos_fixos"]["criadas"] == 1
+
+    tags = client.get("/tags").json()
+    created = next((t for t in tags if t["name"] == "Moradia"), None)
+    assert created is not None
+    assert created["type"] == "despesa"
+
+    listed = client.get("/gastos-fixos/").json()
+    gf = next(g for g in listed if g["name"] == "Aluguel")
+    assert gf["tag_id"] == created["id"]
+
+
+def test_import_autocreates_missing_account_for_gasto_fixo(client):
+    r = client.post("/configs/import", json={
+        "tags": [],
+        "contas": [],
+        "gastos_fixos": [{
+            "name": "Aluguel",
+            "tag_name": "Moradia",
+            "tag_type": "despesa",
+            "expected_value": "1500.00",
+            "default_account_name": "Itau",
+            "default_account_type": "banco",
+            "start_year": 2026,
+            "start_month": 6,
+        }],
+    })
+    assert r.status_code == 200
+
+    contas = client.get("/contas").json()
+    created = next((c for c in contas if c["name"] == "Itau"), None)
+    assert created is not None
+    assert created["type"] == "banco"
+
+
+def test_roundtrip_gasto_fixo(client):
+    tag = make_tag(client, name="Moradia", type="despesa", color="#FF6384")
+    conta = make_conta(client, name="Nubank", type="banco", color="#820AD1")
+    make_gasto_fixo(
+        client,
+        tag["id"],
+        name="Aluguel",
+        default_account_id=conta["id"],
+        due_day=5,
+    )
+
+    export = client.get("/configs/export").json()
+
+    # wipe everything
+    for g in client.get("/gastos-fixos/").json():
+        client.delete(f"/gastos-fixos/{g['id']}")
+    for t in client.get("/tags").json():
+        client.delete(f"/tags/{t['id']}")
+    for c in client.get("/contas").json():
+        client.delete(f"/contas/{c['id']}")
+
+    r = client.post("/configs/import", json=export)
+    assert r.status_code == 200
+    assert r.json()["gastos_fixos"]["criadas"] == 1
+
+    listed = client.get("/gastos-fixos/").json()
+    gf = next(g for g in listed if g["name"] == "Aluguel")
+    assert gf["due_day"] == 5
+    assert float(gf["expected_value"]) == 1500.00
 
 
 def test_export_import_roundtrip(client):
