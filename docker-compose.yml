@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: financex
       POSTGRES_USER: financex
@@ -17,6 +18,7 @@ services:
 
   backend:
     build: ./backend
+    restart: unless-stopped
     # Sem porta publicada no host: o backend só é alcançado pela rede do
     # compose, via o reverse proxy do nginx do frontend (decisão #1).
     expose:
@@ -32,6 +34,7 @@ services:
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     # Única porta publicada no host. O nginx serve o SPA e faz proxy de
     # /api -> backend:8000 (ver frontend/nginx.conf).
     ports:
